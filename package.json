@@ -1,0 +1,28 @@
+{
+  "name": "nexus",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "format": "prettier --write .",
+    "check-format": "prettier --check ."
+  },
+  "devDependencies": {
+    "@google-cloud/cloudbuild": "^5.5.0",
+    "@google-cloud/run": "^3.2.0",
+    "@google-cloud/storage": "^7.19.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "google-auth-library": "^10.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "prettier": "^3.5",
+    "turbo": "^2.4",
+    "typescript": "^5.7",
+    "vitest": "^3.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

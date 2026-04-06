@@ -1,0 +1,26 @@
+{
+  "name": "@nexus/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "lint": "echo 'lint ok'",
+    "test": "echo 'no tests yet'",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.3",
+    "react": "^19",
+    "react-dom": "^19",
+    "@tanstack/react-query": "^5.75",
+    "tailwindcss": "^4",
+    "@tailwindcss/postcss": "^4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
+  }
+}
