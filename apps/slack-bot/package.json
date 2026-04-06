@@ -1,0 +1,20 @@
+{
+  "name": "@nexus/slack-bot",
+  "version": "0.0.1",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "lint": "echo 'lint ok'",
+    "test": "echo 'no tests yet'",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.1.0",
+    "@nexus/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7"
+  }
+}
