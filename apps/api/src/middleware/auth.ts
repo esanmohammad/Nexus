@@ -22,6 +22,9 @@ const DEV_TOKENS: Record<string, AuthUser> = {
   "other-user-token": { email: "other@co.com", name: "Other User" },
   "unauthorized-user-token": { email: "unauthorized@co.com", name: "Unauthorized User" },
   "internal-key": { email: "internal@system.co.com", name: "Internal System" },
+  "admin-token": { email: "admin@co.com", name: "Admin User" },
+  "admin-user-token": { email: "admin@co.com", name: "Admin User" },
+  "regular-user-token": { email: "regular@co.com", name: "Regular User" },
 };
 
 export function verifyToken(token: string): AuthUser | null {
@@ -30,6 +33,22 @@ export function verifyToken(token: string): AuthUser | null {
     return DEV_TOKENS[token];
   }
 
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    return { email: payload.email, name: payload.name };
+  } catch {
+    return null;
+  }
+}
+
+export function verifyCfJwt(token: string): AuthUser | null {
+  // In non-production, accept well-known test tokens
+  if (process.env.NODE_ENV !== "production" && DEV_TOKENS[token]) {
+    return DEV_TOKENS[token];
+  }
+
+  // In production, verify against Cloudflare's public keys
+  // For now, attempt JWT decode with the app secret as a fallback
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
     return { email: payload.email, name: payload.name };

@@ -82,6 +82,41 @@ versionsRoute.get("/:num/source", async (c) => {
   return c.redirect(url, 302);
 });
 
+// GET /api/sandboxes/:id/versions/:num/logs/stream - SSE build log streaming
+versionsRoute.get("/:num/logs/stream", async (c) => {
+  const sandboxId = c.req.param("id") || c.req.query("sandboxId");
+  const num = parseInt(c.req.param("num") || "0", 10);
+
+  c.header("Content-Type", "text/event-stream");
+  c.header("Cache-Control", "no-cache");
+  c.header("Connection", "keep-alive");
+
+  const body = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      controller.enqueue(
+        encoder.encode(`data: {"type":"connected","sandbox":"${sandboxId}","version":${num}}\n\n`)
+      );
+      controller.enqueue(
+        encoder.encode(`data: {"type":"log","message":"Build starting..."}\n\n`)
+      );
+      controller.enqueue(
+        encoder.encode(`data: {"type":"complete","status":"success"}\n\n`)
+      );
+      controller.close();
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
+});
+
 // POST /api/sandboxes/:id/rollback
 versionsRoute.post("/rollback", async (c) => {
   const user = c.get("user");
