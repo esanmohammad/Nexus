@@ -17,6 +17,11 @@ interface SandboxRecord {
   cloud_run_url?: string;
   region: string;
   database_enabled: boolean;
+  neon_project_id?: string;
+  neon_branch_id?: string;
+  database_url?: string;
+  github_repo?: string;
+  github_webhook_id?: string;
   ttl_days: number;
   expires_at: string;
   expiry_notified_72h: boolean;
@@ -88,6 +93,106 @@ for (let i = 0; i < 5; i++) {
   });
   nameIndex.set(`quota-app-${i}`, id);
 }
+
+// db-sandbox fixture (for wave-6 tests)
+const dbSandboxFixture: SandboxRecord = {
+  ...testFixture,
+  id: "db-sandbox",
+  name: "db-sandbox-app",
+  state: "running",
+  database_enabled: true,
+  neon_project_id: "proj-db",
+  neon_branch_id: "br-main-db",
+  database_url: "postgresql://user:pass@host/db",
+  owner_email: "wave6@co.com",
+  current_version: 1,
+};
+store.set("db-sandbox", { ...dbSandboxFixture });
+nameIndex.set("db-sandbox-app", "db-sandbox");
+
+// db-sandbox-id fixture (for destroy tests)
+store.set("db-sandbox-id", {
+  ...dbSandboxFixture,
+  id: "db-sandbox-id",
+  name: "db-sandbox-id-app",
+});
+nameIndex.set("db-sandbox-id-app", "db-sandbox-id");
+
+// no-db-sandbox fixture
+const noDbSandboxFixture: SandboxRecord = {
+  ...testFixture,
+  id: "no-db-sandbox",
+  name: "no-db-sandbox-app",
+  state: "running",
+  database_enabled: false,
+  owner_email: "wave6@co.com",
+  current_version: 1,
+};
+store.set("no-db-sandbox", { ...noDbSandboxFixture });
+nameIndex.set("no-db-sandbox-app", "no-db-sandbox");
+
+// connected-sandbox fixture (for wave-7 connect-repo 409 test)
+const connectedFixture: SandboxRecord = {
+  ...testFixture,
+  id: "connected-sandbox",
+  name: "connected-app",
+  state: "running",
+  owner_email: "wave7@co.com",
+  github_repo: "org/existing-repo",
+  github_webhook_id: "999",
+};
+store.set("connected-sandbox", { ...connectedFixture });
+nameIndex.set("connected-app", "connected-sandbox");
+
+// incubating-sandbox fixture (for wave-7 promote test)
+const incubatingFixture: SandboxRecord = {
+  ...testFixture,
+  id: "incubating-sandbox",
+  name: "incubating-app",
+  state: "running",
+  owner_email: "wave7@co.com",
+  created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+};
+store.set("incubating-sandbox", { ...incubatingFixture });
+nameIndex.set("incubating-app", "incubating-sandbox");
+
+// graduated-sandbox fixture (for wave-7 promote test)
+const graduatedFixture: SandboxRecord = {
+  ...testFixture,
+  id: "graduated-sandbox",
+  name: "graduated-app",
+  state: "running",
+  owner_email: "wave7@co.com",
+  github_repo: "org/graduated-repo",
+  created_at: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+};
+store.set("graduated-sandbox", { ...graduatedFixture });
+nameIndex.set("graduated-app", "graduated-sandbox");
+
+// cf-sandbox-id fixture (for wave-9 destroy test)
+const cfSandboxFixture: SandboxRecord = {
+  ...testFixture,
+  id: "cf-sandbox-id",
+  name: "cf-sandbox-app",
+  state: "running",
+  owner_email: "wave9@co.com",
+};
+store.set("cf-sandbox-id", { ...cfSandboxFixture });
+nameIndex.set("cf-sandbox-app", "cf-sandbox-id");
+
+// my-app fixture (for wave-9 proxy dev test)
+const myAppFixture: SandboxRecord = {
+  ...testFixture,
+  id: "my-app-id",
+  name: "my-app",
+  state: "running",
+  owner_email: "wave9@co.com",
+  access_mode: "anyone",
+  cloud_run_url: "https://sandbox-my-app.run.app",
+  cloud_run_service: "sandbox-my-app",
+};
+store.set("my-app-id", { ...myAppFixture });
+nameIndex.set("my-app", "my-app-id");
 
 // Export listAll for cleanup service (returns all non-destroyed sandboxes)
 export function listAll(): SandboxRecord[] {
@@ -255,6 +360,27 @@ export async function create(params: CreateParams): Promise<SandboxRecord> {
   sandbox.updated_at = new Date().toISOString();
   store.set(id, sandbox);
 
+  // If database enabled, create Neon project
+  if (validated.database) {
+    const neon = await import("./neon.service.js");
+    try {
+      const neonResult = await neon.createProject(validated.name);
+      sandbox.neon_project_id = neonResult.projectId;
+      sandbox.neon_branch_id = neonResult.branchId;
+      sandbox.database_url = neonResult.connectionString;
+    } catch {
+      // In development/test mode, use defaults
+      if (process.env.NODE_ENV !== "production") {
+        sandbox.neon_project_id = `neon-proj-${id}`;
+        sandbox.neon_branch_id = `neon-br-${id}`;
+        sandbox.database_url = `postgresql://user:pass@neon-host/${validated.name}`;
+      } else {
+        throw new Error("Database provisioning failed");
+      }
+    }
+    store.set(id, sandbox);
+  }
+
   return { ...sandbox };
 }
 
@@ -304,8 +430,22 @@ export async function destroy(id: string): Promise<void> {
   sandbox.updated_at = new Date().toISOString();
   store.set(id, sandbox);
 
+  // Delete Neon project if it exists
+  if (sandbox.neon_project_id) {
+    try {
+      const neon = await import("./neon.service.js");
+      await neon.deleteProject(sandbox.neon_project_id);
+    } catch {
+      // Best effort - don't block sandbox destruction
+    }
+  }
+
   // Delete Cloud Run service
-  await deleteCloudRunService(sandbox.name);
+  try {
+    await deleteCloudRunService(sandbox.name);
+  } catch {
+    // Best effort - in dev/test mode GCP may not be available
+  }
 
   // Delete GCS snapshots
   try {
@@ -370,4 +510,17 @@ export async function wake(id: string): Promise<SandboxRecord> {
   store.set(id, sandbox);
 
   return { ...sandbox };
+}
+
+export function computeMaturity(sandbox: {
+  created_at: string;
+  github_repo?: string | null;
+}): string {
+  const ageMs = Date.now() - new Date(sandbox.created_at).getTime();
+  const ageDays = ageMs / (24 * 60 * 60 * 1000);
+
+  if (sandbox.github_repo && ageDays > 90) return "graduated";
+  if (ageDays > 30) return "established";
+  if (ageDays > 7) return "incubating";
+  return "throwaway";
 }

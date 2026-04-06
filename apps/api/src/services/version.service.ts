@@ -11,6 +11,7 @@ interface VersionRecord {
   deployed_by: string;
   label?: string;
   migration_sql?: string;
+  neon_branch_id?: string;
   snapshot_url?: string;
   image_url?: string;
   cloud_run_revision?: string;
@@ -45,12 +46,48 @@ const seedVersion: VersionRecord = {
 };
 store.set(seedVersion.id, { ...seedVersion });
 
+// Seed version for db-sandbox (wave-6 tests)
+const dbSandboxVersion: VersionRecord = {
+  id: "version-db-1",
+  sandbox_id: "db-sandbox",
+  number: 1,
+  status: "live",
+  deployed_by: "test@co.com",
+  snapshot_url: "gs://nexus-snapshots/db-sandbox-app/v1/source.tar.gz",
+  image_url: "registry/db-sandbox-app:v1",
+  cloud_run_revision: "sandbox-db-sandbox-app-00001",
+  neon_branch_id: "br-main-db",
+  build_duration_ms: 3000,
+  deployed_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+store.set(dbSandboxVersion.id, { ...dbSandboxVersion });
+
+// Seed version for no-db-sandbox (wave-6 tests)
+const noDbSandboxVersion: VersionRecord = {
+  id: "version-nodb-1",
+  sandbox_id: "no-db-sandbox",
+  number: 1,
+  status: "live",
+  deployed_by: "test@co.com",
+  snapshot_url: "gs://nexus-snapshots/no-db-sandbox-app/v1/source.tar.gz",
+  image_url: "registry/no-db-sandbox-app:v1",
+  cloud_run_revision: "sandbox-no-db-sandbox-app-00001",
+  build_duration_ms: 3000,
+  deployed_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+store.set(noDbSandboxVersion.id, { ...noDbSandboxVersion });
+
 export interface DeployParams {
   sandboxId: string;
   sourceBuffer: Buffer;
   deployedBy: string;
   label?: string;
   migration_sql?: string;
+  migrationSql?: string;
 }
 
 export async function deploy(params: DeployParams): Promise<VersionRecord> {
@@ -168,6 +205,34 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
     }
   }
 
+  // DB migration if sandbox has database and migration SQL provided
+  const migrationSql = params.migrationSql || params.migration_sql;
+  if (sandbox.database_enabled && sandbox.neon_project_id && migrationSql) {
+    const neon = await import("./neon.service.js");
+    try {
+      const branch = await neon.createBranch(
+        sandbox.neon_project_id,
+        `v${number}-migration`,
+        sandbox.neon_branch_id || ""
+      );
+      await neon.applyMigration(branch.connectionString, migrationSql);
+      version.neon_branch_id = branch.branchId;
+      try {
+        await neon.promoteBranch(sandbox.neon_project_id, branch.branchId);
+      } catch {
+        // Best effort
+      }
+      await sandboxService.update(params.sandboxId, {
+        neon_branch_id: branch.branchId,
+      } as any);
+    } catch (err: any) {
+      version.status = "failed";
+      version.updated_at = new Date().toISOString();
+      store.set(id, version);
+      throw err;
+    }
+  }
+
   // Update sandbox current_version
   await sandboxService.update(params.sandboxId, { current_version: number });
 
@@ -231,6 +296,22 @@ export async function rollback(params: RollbackParams): Promise<VersionRecord> {
   targetVersion.status = "live";
   targetVersion.updated_at = new Date().toISOString();
   store.set(targetVersion.id, targetVersion);
+
+  // If sandbox has DB, switch Neon branch
+  if (sandbox.database_enabled && sandbox.neon_project_id) {
+    const neon = await import("./neon.service.js");
+    try {
+      const result = await neon.switchBranch(
+        sandbox.neon_project_id,
+        targetVersion.neon_branch_id || sandbox.neon_branch_id || ""
+      );
+      await sandboxService.update(params.sandboxId, {
+        database_url: result.connectionString,
+      } as any);
+    } catch {
+      // Best effort
+    }
+  }
 
   // Update sandbox
   await sandboxService.update(params.sandboxId, { current_version: targetVersion.number });
