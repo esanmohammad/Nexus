@@ -183,3 +183,58 @@ sandboxesRoute.post("/:id/share", async (c) => {
   });
   return c.json(updated);
 });
+
+// POST /api/sandboxes/:id/connect-repo
+sandboxesRoute.post("/:id/connect-repo", async (c) => {
+  const sandbox = await sandboxService.get(c.req.param("id"));
+
+  if (!sandbox) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Sandbox not found" } }, 404);
+  }
+
+  if ((sandbox as any).github_repo) {
+    return c.json({ error: { code: "CONFLICT", message: "Sandbox already connected to a repo" } }, 409);
+  }
+
+  const body = await c.req.json();
+  const updated = await sandboxService.update(c.req.param("id"), {
+    github_repo: body.repo,
+  } as any);
+  return c.json(updated, 200);
+});
+
+// DELETE /api/sandboxes/:id/connect-repo
+sandboxesRoute.delete("/:id/connect-repo", async (c) => {
+  const sandbox = await sandboxService.get(c.req.param("id"));
+
+  if (!sandbox) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Sandbox not found" } }, 404);
+  }
+
+  const updated = await sandboxService.update(c.req.param("id"), {
+    github_repo: undefined,
+    github_webhook_id: undefined,
+  } as any);
+  return c.json(updated, 200);
+});
+
+// POST /api/sandboxes/:id/promote
+sandboxesRoute.post("/:id/promote", async (c) => {
+  const sandbox = await sandboxService.get(c.req.param("id"));
+
+  if (!sandbox) {
+    return c.json({ error: { code: "NOT_FOUND", message: "Sandbox not found" } }, 404);
+  }
+
+  const maturity = sandboxService.computeMaturity(sandbox as any);
+
+  if (maturity === "graduated") {
+    return c.json({ error: { code: "BAD_REQUEST", message: "Sandbox is already graduated" } }, 400);
+  }
+
+  // Extend TTL and return
+  const updated = await sandboxService.update(c.req.param("id"), {
+    ttl_days: sandbox.ttl_days + 30,
+  } as any);
+  return c.json({ ...updated, maturity }, 200);
+});

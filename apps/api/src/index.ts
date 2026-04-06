@@ -7,18 +7,66 @@ import { authRoute } from "./routes/auth.js";
 import { sandboxesRoute } from "./routes/sandboxes.js";
 import { versionsRoute } from "./routes/versions.js";
 import { proxyRoute } from "./routes/proxy.js";
+import { webhooksRoute } from "./routes/webhooks.js";
+import { adminRoute } from "./routes/admin.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { auditLogMiddleware } from "./middleware/audit-log.js";
+import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 
 const app = new Hono();
+
+// Security headers middleware — must be before all routes
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("X-XSS-Protection", "1; mode=block");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+});
+
+// Body size limit middleware (100 MB)
+const MAX_BODY_SIZE = 100 * 1024 * 1024;
+app.use("*", async (c, next) => {
+  const contentLength = c.req.header("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+    return c.json(
+      { error: { code: "PAYLOAD_TOO_LARGE", message: "Request body too large" } },
+      413
+    );
+  }
+  // Also check actual body size for requests without content-length
+  if (c.req.method === "POST" || c.req.method === "PUT" || c.req.method === "PATCH") {
+    try {
+      const body = await c.req.raw.clone().text();
+      if (body.length > MAX_BODY_SIZE) {
+        return c.json(
+          { error: { code: "PAYLOAD_TOO_LARGE", message: "Request body too large" } },
+          413
+        );
+      }
+    } catch {
+      // If we can't read the body, let it through
+    }
+  }
+  return next();
+});
+
+// Rate limiting middleware
+app.use("*", rateLimitMiddleware);
 
 app.use("*", logger());
 app.use("*", cors());
 
+// Audit log middleware
+app.use("*", auditLogMiddleware);
+
 // Routes
 app.route("/api/health", healthRoute);
 app.route("/api/auth", authRoute);
+app.route("/api/admin", adminRoute);
 app.route("/api/sandboxes", sandboxesRoute);
 app.route("/api/proxy", proxyRoute);
+app.route("/api/webhooks", webhooksRoute);
 
 // Version routes are nested under sandboxes
 app.route("/api/sandboxes/:id/versions", versionsRoute);
@@ -105,10 +153,16 @@ app.onError(errorHandler);
 
 const port = Number(process.env.PORT) || 8080;
 
-if (process.env.NODE_ENV !== "test") {
+if (process.env.NODE_ENV !== "test" && !process.env.VITEST) {
   serve({ fetch: app.fetch, port }, () => {
     console.log(`Nexus API running on http://localhost:${port}`);
   });
 }
+
+// Graceful shutdown handler
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  process.exit(0);
+});
 
 export default app;
