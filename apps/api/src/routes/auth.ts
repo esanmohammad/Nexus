@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "../middleware/auth.js";
+import { verifyToken, verifyCfJwt } from "../middleware/auth.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
@@ -70,6 +70,13 @@ authRoute.get("/callback", async (c) => {
 });
 
 authRoute.get("/me", (c) => {
+  // Try Cloudflare Access JWT
+  const cfJwt = c.req.header("Cf-Access-Jwt-Assertion");
+  if (cfJwt) {
+    const user = verifyCfJwt(cfJwt);
+    if (user) return c.json(user);
+  }
+
   // Try Bearer token
   const authHeader = c.req.header("Authorization");
   if (authHeader?.startsWith("Bearer ")) {

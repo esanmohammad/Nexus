@@ -6,20 +6,45 @@ import { GoogleAuth } from "google-auth-library";
 
 export const proxyRoute = new Hono();
 
-const auth = new GoogleAuth();
+let _auth: GoogleAuth | null = null;
+function getAuth(): GoogleAuth {
+  if (!_auth) _auth = new GoogleAuth();
+  return _auth;
+}
+
+// In production with Cloudflare Access, proxy is disabled (use CF tunnel instead)
+proxyRoute.use("*", async (c, next) => {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.CLOUDFLARE_API_TOKEN
+  ) {
+    return c.json(
+      { error: { code: "GONE", message: "Proxy disabled in production. Use Cloudflare tunnel." } },
+      410
+    );
+  }
+  return next();
+});
 
 proxyRoute.use("*", authMiddleware);
 
 proxyRoute.all("/:sandboxName{.*}", async (c) => {
   const user = c.get("user");
-  const sandboxName = c.req.param("sandboxName");
+  const rawParam = c.req.param("sandboxName");
+  // Extract just the sandbox name (first path segment, strip trailing path/slash)
+  const sandboxName = rawParam.split("/")[0];
 
-  // Find sandbox by name
+  // Find sandbox by name — first check user's own sandboxes, then all sandboxes
   const sandboxes = await sandboxService.list(user.email);
-  const sandbox = sandboxes.find((s) => s.name === sandboxName);
+  let sandbox = sandboxes.find((s) => s.name === sandboxName);
+
+  // If not found in user's sandboxes, check all sandboxes (for shared/team access)
+  if (!sandbox) {
+    const allSandboxes = sandboxService.listAll();
+    sandbox = allSandboxes.find((s) => s.name === sandboxName) || undefined;
+  }
 
   if (!sandbox) {
-    // Check if sandbox exists for other users
     return c.json(
       { error: { code: "NOT_FOUND", message: `Sandbox "${sandboxName}" not found` } },
       404
@@ -64,7 +89,7 @@ proxyRoute.all("/:sandboxName{.*}", async (c) => {
 
   try {
     // Get identity token for Cloud Run
-    const client = await auth.getIdTokenClient(targetUrl);
+    const client = await getAuth().getIdTokenClient(targetUrl);
     const headers = await client.getRequestHeaders();
 
     // Proxy the request
