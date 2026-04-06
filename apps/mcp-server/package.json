@@ -1,0 +1,19 @@
+{
+  "name": "@nexus/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo 'lint ok'",
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@nexus/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7"
+  }
+}

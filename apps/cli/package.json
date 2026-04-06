@@ -1,0 +1,27 @@
+{
+  "name": "@nexus/cli",
+  "version": "0.0.1",
+  "private": true,
+  "bin": {
+    "nexus": "./bin/run.ts"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo 'lint ok'",
+    "test": "echo 'no tests yet'"
+  },
+  "oclif": {
+    "bin": "nexus",
+    "dirname": "nexus",
+    "commands": "./dist/commands",
+    "topicSeparator": " "
+  },
+  "dependencies": {
+    "@nexus/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7"
+  }
+}
