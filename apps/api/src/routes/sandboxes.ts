@@ -127,8 +127,18 @@ sandboxesRoute.delete("/:id", async (c) => {
     return c.json({ error: { code: "FORBIDDEN", message: "Access denied" } }, 403);
   }
 
-  await sandboxService.destroy(c.req.param("id"));
-  return c.json({ message: "Sandbox destruction initiated" }, 202);
+  try {
+    await sandboxService.destroy(c.req.param("id"));
+    // Re-fetch to check final state
+    const updated = await sandboxService.get(c.req.param("id"));
+    if (updated?.state === "destroy_failed") {
+      return c.json({ message: "Sandbox partially destroyed — some resources may remain", state: "destroy_failed" }, 207);
+    }
+    return c.json({ message: "Sandbox destroyed" }, 200);
+  } catch (err) {
+    console.error(`[route] destroy failed for ${c.req.param("id")}:`, err);
+    return c.json({ error: { code: "DESTROY_FAILED", message: "Failed to destroy sandbox" } }, 500);
+  }
 });
 
 // POST /api/sandboxes/:id/extend

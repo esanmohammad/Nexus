@@ -65,6 +65,22 @@ export async function deleteSnapshot(gcsUrl: string): Promise<void> {
   }
 }
 
+/** Delete all GCS objects under a sandbox's prefix (all versions). */
+export async function deleteAllSnapshots(sandboxName: string): Promise<void> {
+  const bucket = getSnapshotsBucket();
+  const prefix = `${sandboxName}/`;
+
+  try {
+    await bucket.deleteFiles({ prefix, force: true });
+  } catch (err: unknown) {
+    const error = err as { code?: number };
+    if (error.code === 404) {
+      return;
+    }
+    throw err;
+  }
+}
+
 export async function uploadBuildLog(
   sandboxName: string,
   version: number,

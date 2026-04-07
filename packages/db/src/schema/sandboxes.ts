@@ -14,6 +14,7 @@ export const sandboxStateEnum = pgEnum("sandbox_state", [
   "running",
   "sleeping",
   "destroying",
+  "destroy_failed",
   "destroyed",
 ]);
 

@@ -8,6 +8,7 @@ const colorMap: Record<string, string> = {
   failed: "bg-danger/15 text-danger border-danger/20",
   destroyed: "bg-danger/15 text-danger border-danger/20",
   destroying: "bg-danger/15 text-danger border-danger/20",
+  destroy_failed: "bg-warning/15 text-warning border-warning/20",
 };
 
 const dotColorMap: Record<string, string> = {
@@ -18,6 +19,7 @@ const dotColorMap: Record<string, string> = {
   creating: "bg-text-muted animate-pulse",
   failed: "bg-danger",
   destroyed: "bg-danger",
+  destroy_failed: "bg-warning",
 };
 
 export function StatusBadge({ status }: { status: string }) {

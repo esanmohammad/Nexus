@@ -1,7 +1,7 @@
 import { CreateSandboxSchema, ExtendSandboxSchema } from "@nexus/shared";
-import { uploadSnapshot, deleteSnapshot } from "./storage.service.js";
+import { uploadSnapshot, deleteSnapshot, deleteAllSnapshots } from "./storage.service.js";
 import { triggerBuild, waitForBuild } from "./build.service.js";
-import { createService, deleteService as deleteCloudRunService } from "./cloudrun.service.js";
+import { createService, deleteService as deleteCloudRunService, deleteArtifactImage } from "./cloudrun.service.js";
 import { detectRuntime } from "../lib/runtime-detect.js";
 import { schema, eq, and, ne } from "../../../../packages/db/src/index.js";
 import { useDb, getDb } from "../lib/db.js";
@@ -725,44 +725,68 @@ export async function destroy(id: string): Promise<void> {
     store.set(id, sandbox);
   }
 
-  // Delete Neon project if it exists
-  if (sandbox.neon_project_id) {
-    try {
-      const neon = await import("./neon.service.js");
-      await neon.deleteProject(sandbox.neon_project_id);
-    } catch {
-      // Best effort - don't block sandbox destruction
-    }
-  }
+  // On retry, only attempt resources that previously failed (stored in metadata.destroy_failures)
+  const previousFailures = new Set(
+    (sandbox.metadata?.destroy_failures || "").split(",").filter(Boolean)
+  );
+  const isRetry = previousFailures.size > 0;
+  const shouldRun = (resource: string) => !isRetry || previousFailures.has(resource);
 
-  // Delete Cloud Run service
-  try {
-    await deleteCloudRunService(sandbox.name);
-  } catch {
-    // Best effort - in dev/test mode GCP may not be available
-  }
+  const failures: string[] = [];
 
-  // Delete GCS snapshots
-  try {
-    await deleteSnapshot(
-      `gs://${process.env.GCS_BUCKET_SNAPSHOTS || "nexus-snapshots"}/${sandbox.name}/v1/source.tar.gz`
-    );
-  } catch {
-    // Best effort cleanup
-  }
+  const cleanups = [
+    shouldRun("Neon") && sandbox.neon_project_id
+      ? import("./neon.service.js")
+          .then((neon) => neon.deleteProject(sandbox.neon_project_id!))
+          .catch((err) => { failures.push("Neon"); console.error(`[destroy] Neon:`, err); })
+      : Promise.resolve(),
+    shouldRun("CloudRun")
+      ? deleteCloudRunService(sandbox.name)
+          .catch((err) => { failures.push("CloudRun"); console.error(`[destroy] Cloud Run:`, err); })
+      : Promise.resolve(),
+    shouldRun("ArtifactRegistry")
+      ? deleteArtifactImage(sandbox.name)
+          .catch((err) => { failures.push("ArtifactRegistry"); console.error(`[destroy] AR:`, err); })
+      : Promise.resolve(),
+    shouldRun("GCS")
+      ? deleteAllSnapshots(sandbox.name)
+          .catch((err) => { failures.push("GCS"); console.error(`[destroy] GCS:`, err); })
+      : Promise.resolve(),
+  ];
 
-  sandbox.state = "destroyed";
-  sandbox.destroyed_at = new Date().toISOString();
+  await Promise.all(cleanups);
+
+  // Only mark fully destroyed if all cleanups succeeded
+  const finalState = failures.length === 0 ? "destroyed" : "destroy_failed";
+  sandbox.state = finalState;
   sandbox.updated_at = new Date().toISOString();
+  if (finalState === "destroyed") {
+    sandbox.destroyed_at = new Date().toISOString();
+  }
+
+  const dbUpdate: Record<string, unknown> = {
+    state: finalState,
+    updated_at: new Date(),
+    metadata: {
+      ...(sandbox.metadata || {}),
+      destroy_failures: failures.join(","),
+    },
+  };
+  if (finalState === "destroyed") {
+    dbUpdate.destroyed_at = new Date();
+    delete (dbUpdate.metadata as Record<string, string>).destroy_failures;
+  }
+
   if (_useDb) {
     const db = getDb();
-    await db.update(schema.sandboxes).set({
-      state: "destroyed",
-      destroyed_at: new Date(),
-      updated_at: new Date(),
-    }).where(eq(schema.sandboxes.id, id));
+    await db.update(schema.sandboxes).set(dbUpdate).where(eq(schema.sandboxes.id, id));
   } else {
+    sandbox.metadata = dbUpdate.metadata as Record<string, string>;
     store.set(id, sandbox);
+  }
+
+  if (failures.length > 0) {
+    console.error(`[destroy] Sandbox ${id} partially failed: ${failures.join(", ")}`);
   }
 }
 

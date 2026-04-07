@@ -187,6 +187,42 @@ export async function deleteService(sandboxName: string): Promise<void> {
   }
 }
 
+/** Delete all Artifact Registry images for a sandbox (all version tags). */
+export async function deleteArtifactImage(sandboxName: string): Promise<void> {
+  const registry = process.env.ARTIFACT_REGISTRY;
+  if (!registry) return;
+
+  // registry format: us-central1-docker.pkg.dev/project/repo
+  // We need to delete the package: us-central1-docker.pkg.dev/project/repo/sandboxName
+  const imagePath = `${registry}/${sandboxName}`;
+
+  // Parse: LOCATION-docker.pkg.dev/PROJECT/REPOSITORY/PACKAGE
+  const match = imagePath.match(
+    /^([a-z0-9-]+)-docker\.pkg\.dev\/([^/]+)\/([^/]+)\/(.+)$/
+  );
+  if (!match) {
+    console.warn(`[destroy] Could not parse AR image path: ${imagePath}`);
+    return;
+  }
+  const [, location, project, repo, pkg] = match;
+
+  // Use REST API — no extra SDK needed
+  const { GoogleAuth } = await import("google-auth-library");
+  const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  const client = await auth.getClient();
+
+  const url = `https://artifactregistry.googleapis.com/v1/projects/${project}/locations/${location}/repositories/${repo}/packages/${encodeURIComponent(pkg)}`;
+
+  try {
+    await client.request({ url, method: "DELETE" });
+  } catch (err: unknown) {
+    const error = err as { code?: number; status?: number; response?: { status?: number } };
+    const status = error.code || error.status || error.response?.status;
+    if (status === 404) return; // Already gone
+    throw err;
+  }
+}
+
 export async function getServiceUrl(
   sandboxName: string
 ): Promise<string | null> {
