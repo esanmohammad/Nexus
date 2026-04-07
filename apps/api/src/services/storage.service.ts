@@ -14,11 +14,14 @@ export async function uploadSnapshot(
   }
 
   const bucket = getSnapshotsBucket();
-  const objectPath = `${sandboxName}/v${version}/source.tar.gz`;
+  // Cloud Build accepts .zip or .tar.gz — detect by magic bytes
+  const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b;
+  const ext = isZip ? "source.zip" : "source.tar.gz";
+  const objectPath = `${sandboxName}/v${version}/${ext}`;
   const file = bucket.file(objectPath);
 
   await file.save(buffer, {
-    contentType: "application/gzip",
+    contentType: isZip ? "application/zip" : "application/gzip",
     metadata: {
       sandbox: sandboxName,
       version: String(version),

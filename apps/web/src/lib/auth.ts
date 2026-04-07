@@ -7,19 +7,23 @@ export interface AuthUser {
   name: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+const DEV_TOKEN = "valid-token";
 
 export function login(): void {
-  window.location.href = `${API_BASE}/api/auth/login`;
+  // In dev mode, set a dev session cookie and redirect home
+  try {
+    document.cookie = `session=${DEV_TOKEN}; path=/; max-age=86400; SameSite=Lax`;
+    window.location.assign("/");
+  } catch (e) {
+    console.error("Login failed:", e);
+  }
 }
 
 export function logout(): void {
-  fetch(`${API_BASE}/api/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  }).finally(() => {
-    window.location.href = "/login";
-  });
+  document.cookie = "session=; path=/; max-age=0";
+  window.location.href = "/login";
 }
 
 export function getSession(): string | null {
@@ -33,9 +37,15 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
+    const token = getSession();
+    if (!token) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/auth/me`, {
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();

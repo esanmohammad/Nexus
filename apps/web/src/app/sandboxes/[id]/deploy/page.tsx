@@ -7,7 +7,7 @@ import Link from "next/link";
 import { DeployDropzone } from "../../../../components/deploy-dropzone";
 import { BuildLogStream } from "../../../../components/build-log-stream";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE, getSession } from "../../../../lib/auth";
 
 export default function DeployPage() {
   const params = useParams();
@@ -22,8 +22,9 @@ export default function DeployPage() {
   const { data: sandbox } = useQuery({
     queryKey: ["sandbox", id],
     queryFn: async () => {
+      const token = getSession();
       const res = await fetch(`${API_BASE}/api/sandboxes/${id}`, {
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Not found");
       return res.json();
@@ -37,13 +38,14 @@ export default function DeployPage() {
     setBuildStatus("building");
 
     try {
+      const token = getSession();
       const formData = new FormData();
       formData.append("source", file);
-      if (label) formData.append("label", label);
+      if (label) formData.append("config", JSON.stringify({ label }));
 
       const res = await fetch(`${API_BASE}/api/sandboxes/${id}/versions`, {
         method: "POST",
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 

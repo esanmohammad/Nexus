@@ -54,12 +54,12 @@ Initialize oclif project with `@nexus/sdk` dependency. Entry point at `bin/run.t
 Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to receive callback, exchange code for token, store token.
 
 ### Acceptance Criteria
-- [ ] Running `nexus login` opens browser to Google OAuth consent page
-- [ ] Local server starts on random available port
-- [ ] After consent, callback received and code exchanged for JWT
-- [ ] JWT stored in `~/.nexus/config.json`
-- [ ] Prints "Logged in as {email}" on success
-- [ ] Prints error message on failure
+- [x] Running `nexus login` opens browser to Google OAuth consent page
+- [x] Local server starts on random available port
+- [x] After consent, callback received and code exchanged for JWT
+- [x] JWT stored in `~/.nexus/config.json`
+- [x] Prints "Logged in as {email}" on success
+- [x] Prints error message on failure
 
 ---
 
@@ -72,14 +72,14 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus create <name> --from ./dir`: tar source directory (excluding node_modules, .git, .env), upload to API, stream build log, print result.
 
 ### Acceptance Criteria
-- [ ] Accepts sandbox name as argument
-- [ ] `--from` flag specifies source directory (default: current dir)
-- [ ] Excludes `node_modules/`, `.git/`, `.env`, `dist/` from tar
-- [ ] Tar file uploaded to POST `/api/sandboxes`
-- [ ] Build log streamed to terminal in real-time
-- [ ] On success: prints "v1 is live at {URL}"
-- [ ] On failure: prints "Build failed: {error}" and log URL
-- [ ] Shows spinner during upload phase
+- [x] Accepts sandbox name as argument
+- [x] `--from` flag specifies source directory (default: current dir)
+- [x] Excludes `node_modules/`, `.git/`, `.env`, `dist/` from tar
+- [x] Tar file uploaded to POST `/api/sandboxes`
+- [x] Build log streamed to terminal in real-time
+- [x] On success: prints "v1 is live at {URL}"
+- [x] On failure: prints "Build failed: {error}" and log URL
+- [x] Shows spinner during upload phase
 
 ---
 
@@ -92,13 +92,13 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus deploy <name>`: tar current directory, upload as new version, stream build log.
 
 ### Acceptance Criteria
-- [ ] Accepts sandbox name as argument
-- [ ] Tars current directory (same exclusions as create)
-- [ ] `--label` flag for optional version label
-- [ ] Uploads to POST `/api/sandboxes/:id/versions`
-- [ ] Build log streamed to terminal
-- [ ] On success: prints "v{N} is live at {URL}"
-- [ ] On failure: prints error with suggestion
+- [x] Accepts sandbox name as argument
+- [x] Tars current directory (same exclusions as create)
+- [x] `--label` flag for optional version label
+- [x] Uploads to POST `/api/sandboxes/:id/versions`
+- [x] Build log streamed to terminal
+- [x] On success: prints "v{N} is live at {URL}"
+- [x] On failure: prints error with suggestion
 
 ---
 
@@ -111,12 +111,12 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus rollback <name>`: roll back to previous version. `--to vN` for specific version.
 
 ### Acceptance Criteria
-- [ ] Accepts sandbox name as argument
-- [ ] Default: rolls back to previous version
-- [ ] `--to` flag accepts version number (e.g., `--to 2`)
-- [ ] Prints "Rolled back to v{N}" on success
-- [ ] Completes in < 10 seconds
-- [ ] Shows confirmation prompt before rollback
+- [x] Accepts sandbox name as argument
+- [x] Default: rolls back to previous version
+- [x] `--to` flag accepts version number (e.g., `--to 2`)
+- [x] Prints "Rolled back to v{N}" on success
+- [x] Completes in < 10 seconds
+- [x] Shows confirmation prompt before rollback
 
 ---
 
@@ -129,12 +129,12 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus list`: display table of user's sandboxes with columns: name, state, version, URL, expires.
 
 ### Acceptance Criteria
-- [ ] Displays formatted table
-- [ ] Columns: Name, State, Version, URL, Expires
-- [ ] State shown with color (green=running, yellow=sleeping, etc.)
-- [ ] URL truncated if too long
-- [ ] Empty state: "No sandboxes found"
-- [ ] `--json` flag for JSON output
+- [x] Displays formatted table
+- [x] Columns: Name, State, Version, URL, Expires
+- [x] State shown with color (green=running, yellow=sleeping, etc.)
+- [x] URL truncated if too long
+- [x] Empty state: "No sandboxes found"
+- [x] `--json` flag for JSON output
 
 ---
 
@@ -147,10 +147,10 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus info <name>`: detailed view of sandbox + all versions.
 
 ### Acceptance Criteria
-- [ ] Shows all sandbox fields: name, state, URL, owner, TTL, created, access mode
-- [ ] Shows version list with number, label, status, deployer, time
-- [ ] Current live version highlighted
-- [ ] Shows database info if enabled
+- [x] Shows all sandbox fields: name, state, URL, owner, TTL, created, access mode
+- [x] Shows version list with number, label, status, deployer, time
+- [x] Current live version highlighted
+- [x] Shows database info if enabled
 
 ---
 
@@ -163,9 +163,9 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus versions <name>`: table of all versions for a sandbox.
 
 ### Acceptance Criteria
-- [ ] Table columns: Version, Label, Status, Deployed By, Time
-- [ ] Live version highlighted
-- [ ] `--json` flag for JSON output
+- [x] Table columns: Version, Label, Status, Deployed By, Time
+- [x] Live version highlighted
+- [x] `--json` flag for JSON output
 
 ---
 
@@ -178,11 +178,11 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus destroy <name>`: confirmation prompt → destroy sandbox.
 
 ### Acceptance Criteria
-- [ ] Shows confirmation: "Type '{name}' to confirm destruction"
-- [ ] Only proceeds if user types exact sandbox name
-- [ ] `--confirm` flag skips prompt
-- [ ] Prints "Destroyed {name}" on success
-- [ ] Prints error if sandbox not found
+- [x] Shows confirmation: "Type '{name}' to confirm destruction"
+- [x] Only proceeds if user types exact sandbox name
+- [x] `--confirm` flag skips prompt
+- [x] Prints "Destroyed {name}" on success
+- [x] Prints error if sandbox not found
 
 ---
 
@@ -195,10 +195,10 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus extend <name> --ttl 30d`: extend sandbox TTL.
 
 ### Acceptance Criteria
-- [ ] Accepts sandbox name as argument
-- [ ] `--ttl` flag accepts duration string (e.g., `7d`, `30d`)
-- [ ] Parses duration string to days
-- [ ] Prints new expiry date on success
+- [x] Accepts sandbox name as argument
+- [x] `--ttl` flag accepts duration string (e.g., `7d`, `30d`)
+- [x] Parses duration string to days
+- [x] Prints new expiry date on success
 
 ---
 
@@ -211,11 +211,11 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus share <name>`: update access. Flags: `--team`, `--everyone`, `--email a@b.com`.
 
 ### Acceptance Criteria
-- [ ] `--team` sets access_mode to `"team"`
-- [ ] `--everyone` sets access_mode to `"anyone"`
-- [ ] `--email` accepts comma-separated emails, sets access_mode to `"custom"`
-- [ ] `--owner-only` resets to `"owner_only"`
-- [ ] Prints updated access mode on success
+- [x] `--team` sets access_mode to `"team"`
+- [x] `--everyone` sets access_mode to `"anyone"`
+- [x] `--email` accepts comma-separated emails, sets access_mode to `"custom"`
+- [x] `--owner-only` resets to `"owner_only"`
+- [x] Prints updated access mode on success
 
 ---
 
@@ -228,10 +228,10 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 `nexus logs <name>`: show build log for latest version. `--version N` for specific version.
 
 ### Acceptance Criteria
-- [ ] Shows build log for latest version by default
-- [ ] `--version` flag shows log for specific version
-- [ ] Output is plain text, compatible with piping
-- [ ] Shows error if no build log available
+- [x] Shows build log for latest version by default
+- [x] `--version` flag shows log for specific version
+- [x] Output is plain text, compatible with piping
+- [x] Shows error if no build log available
 
 ---
 
@@ -244,12 +244,12 @@ Google OAuth PKCE flow: open browser to consent URL, start local HTTP server to 
 Initialize MCP server using `@modelcontextprotocol/sdk`. Register server with name "nexus", version "0.1.0", capabilities: `{ tools: {} }`. Use StdioServerTransport.
 
 ### Acceptance Criteria
-- [ ] `apps/mcp-server/package.json` exists with name `@nexus/mcp-server`
-- [ ] `@modelcontextprotocol/sdk` is a dependency
-- [ ] `@nexus/sdk` is a dependency
-- [ ] Server creates with name `"nexus"` and version `"0.1.0"`
-- [ ] Uses `StdioServerTransport`
-- [ ] `pnpm --filter @nexus/mcp-server build` succeeds
+- [x] `apps/mcp-server/package.json` exists with name `@nexus/mcp-server`
+- [x] `@modelcontextprotocol/sdk` is a dependency
+- [x] `@nexus/sdk` is a dependency
+- [x] Server creates with name `"nexus"` and version `"0.1.0"`
+- [x] Uses `StdioServerTransport`
+- [x] `pnpm --filter @nexus/mcp-server build` succeeds
 
 ---
 
@@ -271,11 +271,11 @@ Define 9 MCP tools with JSON Schema input definitions:
 9. `sandbox_extend`: name (required), ttl_days (required)
 
 ### Acceptance Criteria
-- [ ] All 9 tools have `name`, `description`, `inputSchema` defined
-- [ ] Each `inputSchema` is valid JSON Schema
-- [ ] Required fields marked correctly
-- [ ] `ListToolsRequest` handler returns all 9 tools
-- [ ] Tool descriptions are clear enough for an LLM to use correctly
+- [x] All 9 tools have `name`, `description`, `inputSchema` defined
+- [x] Each `inputSchema` is valid JSON Schema
+- [x] Required fields marked correctly
+- [x] `ListToolsRequest` handler returns all 9 tools
+- [x] Tool descriptions are clear enough for an LLM to use correctly
 
 ---
 
@@ -297,14 +297,14 @@ Implement handler for each tool:
 9. `sandbox_extend`: call `sdk.extendSandbox`, return new expiry
 
 ### Acceptance Criteria
-- [ ] Each handler returns `{ content: [{ type: "text", text: "..." }] }`
-- [ ] `sandbox_create` tars directory excluding node_modules/.git/.env
-- [ ] `sandbox_deploy` returns "v{N} is live at {URL}"
-- [ ] `sandbox_rollback` returns "Rolled back to v{N}"
-- [ ] `sandbox_status` returns formatted sandbox info
-- [ ] `sandbox_destroy` requires `confirm: true` (refuses otherwise)
-- [ ] All handlers catch errors and return readable error messages
-- [ ] `CallToolRequest` handler routes to correct handler by tool name
+- [x] Each handler returns `{ content: [{ type: "text", text: "..." }] }`
+- [x] `sandbox_create` tars directory excluding node_modules/.git/.env
+- [x] `sandbox_deploy` returns "v{N} is live at {URL}"
+- [x] `sandbox_rollback` returns "Rolled back to v{N}"
+- [x] `sandbox_status` returns formatted sandbox info
+- [x] `sandbox_destroy` requires `confirm: true` (refuses otherwise)
+- [x] All handlers catch errors and return readable error messages
+- [x] `CallToolRequest` handler routes to correct handler by tool name
 
 ---
 
@@ -317,11 +317,11 @@ Implement handler for each tool:
 Read `NEXUS_API_URL` and `NEXUS_TOKEN` from environment. Initialize `NexusClient` with these values. Document MCP config for users.
 
 ### Acceptance Criteria
-- [ ] Reads `NEXUS_API_URL` env var (required)
-- [ ] Reads `NEXUS_TOKEN` env var (required)
-- [ ] Fails with clear error if either is missing
-- [ ] `NexusClient` initialized with both values
-- [ ] README or config example shows `~/.claude/claude_code_config.json` setup
+- [x] Reads `NEXUS_API_URL` env var (required)
+- [x] Reads `NEXUS_TOKEN` env var (required)
+- [x] Fails with clear error if either is missing
+- [x] `NexusClient` initialized with both values
+- [x] README or config example shows `~/.claude/claude_code_config.json` setup
 
 ---
 
@@ -334,12 +334,12 @@ Read `NEXUS_API_URL` and `NEXUS_TOKEN` from environment. Initialize `NexusClient
 Test that ListTools returns 9 tools and each CallTool routes to correct handler (mock SDK calls).
 
 ### Acceptance Criteria
-- [ ] ListTools returns exactly 9 tools
-- [ ] Each tool name is unique
-- [ ] Calling `sandbox_list` invokes `sdk.listSandboxes`
-- [ ] Calling `sandbox_deploy` with valid args invokes `sdk.deployVersion`
-- [ ] Calling `sandbox_destroy` without `confirm: true` returns error
-- [ ] Test passes with `pnpm --filter @nexus/mcp-server test`
+- [x] ListTools returns exactly 9 tools
+- [x] Each tool name is unique
+- [x] Calling `sandbox_list` invokes `sdk.listSandboxes`
+- [x] Calling `sandbox_deploy` with valid args invokes `sdk.deployVersion`
+- [x] Calling `sandbox_destroy` without `confirm: true` returns error
+- [x] Test passes with `pnpm --filter @nexus/mcp-server test`
 
 ---
 
@@ -363,9 +363,9 @@ echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | node apps/mcp-server/dis
 ```
 
 ### Wave 4 Complete Criteria
-- [ ] All 18 tasks pass acceptance criteria
-- [ ] CLI login → create → deploy → rollback → destroy flow works
-- [ ] CLI streams build logs to terminal
-- [ ] MCP server lists 9 tools
-- [ ] MCP tools callable via stdin/stdout JSON-RPC
-- [ ] Claude Code can use MCP tools to deploy and manage sandboxes
+- [x] All 18 tasks pass acceptance criteria
+- [x] CLI login → create → deploy → rollback → destroy flow works
+- [x] CLI streams build logs to terminal
+- [x] MCP server lists 9 tools
+- [x] MCP tools callable via stdin/stdout JSON-RPC
+- [x] Claude Code can use MCP tools to deploy and manage sandboxes

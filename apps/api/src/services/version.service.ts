@@ -2,6 +2,8 @@ import { uploadSnapshot } from "./storage.service.js";
 import { triggerBuild, waitForBuild } from "./build.service.js";
 import { shiftTraffic } from "./cloudrun.service.js";
 import * as sandboxService from "./sandbox.service.js";
+import { schema, eq, and, desc, ne } from "../../../../packages/db/src/index.js";
+import { useDb, getDb } from "../lib/db.js";
 
 interface VersionRecord {
   id: string;
@@ -20,6 +22,29 @@ interface VersionRecord {
   deployed_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+// ---------- helpers to convert DB rows to VersionRecord ----------
+
+function rowToRecord(row: any): VersionRecord {
+  return {
+    id: row.id,
+    sandbox_id: row.sandbox_id,
+    number: row.number,
+    status: row.status,
+    deployed_by: row.created_by ?? "",
+    label: row.label ?? undefined,
+    migration_sql: row.migration_sql ?? undefined,
+    neon_branch_id: row.neon_branch_id ?? undefined,
+    snapshot_url: row.source_snapshot_url ?? undefined,
+    image_url: row.container_image ?? undefined,
+    cloud_run_revision: row.cloud_run_revision ?? undefined,
+    build_id: row.build_log_url ?? undefined,
+    build_duration_ms: row.build_duration_ms ?? undefined,
+    deployed_at: row.deployed_at instanceof Date ? row.deployed_at.toISOString() : row.deployed_at ?? undefined,
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updated_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  };
 }
 
 // In-memory store
@@ -97,31 +122,56 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
   }
 
   const number = (sandbox.current_version || 0) + 1;
+  const _useDb = useDb();
 
   // If this sandbox has a current_version but no version records in our store,
   // create a synthetic record for the previous version(s)
-  const existingVersions = Array.from(store.values()).filter(
-    (v) => v.sandbox_id === params.sandboxId
-  );
-  if (existingVersions.length === 0 && sandbox.current_version && sandbox.current_version >= 1) {
-    const syntheticId = generateId();
-    const syntheticVersion: VersionRecord = {
-      id: syntheticId,
-      sandbox_id: params.sandboxId,
-      number: sandbox.current_version,
-      status: "live",
-      deployed_by: params.deployedBy,
-      snapshot_url: `gs://nexus-snapshots/${sandbox.name}/v${sandbox.current_version}/source.tar.gz`,
-      image_url: `registry/${sandbox.name}:v${sandbox.current_version}`,
-      cloud_run_revision: sandbox.cloud_run_service
-        ? `${sandbox.cloud_run_service}-${String(sandbox.current_version).padStart(5, "0")}`
-        : `sandbox-${sandbox.name}-${String(sandbox.current_version).padStart(5, "0")}`,
-      build_duration_ms: 0,
-      deployed_at: sandbox.created_at,
-      created_at: sandbox.created_at,
-      updated_at: sandbox.created_at,
-    };
-    store.set(syntheticId, syntheticVersion);
+  if (_useDb) {
+    const db = getDb();
+    const existingVersions = await db
+      .select({ id: schema.versions.id })
+      .from(schema.versions)
+      .where(eq(schema.versions.sandbox_id, params.sandboxId));
+    if (existingVersions.length === 0 && sandbox.current_version && sandbox.current_version >= 1) {
+      await db.insert(schema.versions).values({
+        sandbox_id: params.sandboxId,
+        number: sandbox.current_version,
+        status: "live",
+        created_by: params.deployedBy,
+        source_snapshot_url: `gs://nexus-snapshots/${sandbox.name}/v${sandbox.current_version}/source.tar.gz`,
+        container_image: `registry/${sandbox.name}:v${sandbox.current_version}`,
+        cloud_run_revision: sandbox.cloud_run_service
+          ? `${sandbox.cloud_run_service}-${String(sandbox.current_version).padStart(5, "0")}`
+          : `sandbox-${sandbox.name}-${String(sandbox.current_version).padStart(5, "0")}`,
+        build_duration_ms: 0,
+        deployed_at: new Date(sandbox.created_at),
+        created_at: new Date(sandbox.created_at),
+      });
+    }
+  } else {
+    const existingVersions = Array.from(store.values()).filter(
+      (v) => v.sandbox_id === params.sandboxId
+    );
+    if (existingVersions.length === 0 && sandbox.current_version && sandbox.current_version >= 1) {
+      const syntheticId = generateId();
+      const syntheticVersion: VersionRecord = {
+        id: syntheticId,
+        sandbox_id: params.sandboxId,
+        number: sandbox.current_version,
+        status: "live",
+        deployed_by: params.deployedBy,
+        snapshot_url: `gs://nexus-snapshots/${sandbox.name}/v${sandbox.current_version}/source.tar.gz`,
+        image_url: `registry/${sandbox.name}:v${sandbox.current_version}`,
+        cloud_run_revision: sandbox.cloud_run_service
+          ? `${sandbox.cloud_run_service}-${String(sandbox.current_version).padStart(5, "0")}`
+          : `sandbox-${sandbox.name}-${String(sandbox.current_version).padStart(5, "0")}`,
+        build_duration_ms: 0,
+        deployed_at: sandbox.created_at,
+        created_at: sandbox.created_at,
+        updated_at: sandbox.created_at,
+      };
+      store.set(syntheticId, syntheticVersion);
+    }
   }
 
   const id = generateId();
@@ -139,7 +189,22 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
   };
-  store.set(id, version);
+
+  if (_useDb) {
+    const db = getDb();
+    await db.insert(schema.versions).values({
+      id,
+      sandbox_id: params.sandboxId,
+      number,
+      status: "building",
+      created_by: params.deployedBy,
+      label: params.label,
+      migration_sql: params.migration_sql,
+      created_at: now,
+    });
+  } else {
+    store.set(id, version);
+  }
 
   // Upload snapshot
   try {
@@ -183,7 +248,17 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
     version.status = "failed";
     version.build_duration_ms = buildResult.durationMs || 0;
     version.updated_at = new Date().toISOString();
-    store.set(id, version);
+    if (_useDb) {
+      const db = getDb();
+      await db.update(schema.versions).set({
+        status: "failed",
+        build_duration_ms: buildResult.durationMs || 0,
+        source_snapshot_url: version.snapshot_url,
+        build_log_url: buildId,
+      }).where(eq(schema.versions.id, id));
+    } else {
+      store.set(id, version);
+    }
     throw new Error(`Build failed: ${buildResult.error || "unknown"}`);
   }
 
@@ -194,14 +269,39 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
   version.deployed_at = new Date().toISOString();
   version.cloud_run_revision = `sandbox-${sandbox.name}-${String(number).padStart(5, "0")}`;
   version.updated_at = new Date().toISOString();
-  store.set(id, version);
 
-  // Set previous live versions to "rolled_back"
-  for (const [vid, v] of store.entries()) {
-    if (v.sandbox_id === params.sandboxId && v.id !== id && v.status === "live") {
-      v.status = "rolled_back";
-      v.updated_at = new Date().toISOString();
-      store.set(vid, v);
+  if (_useDb) {
+    const db = getDb();
+    await db.update(schema.versions).set({
+      status: "live",
+      container_image: version.image_url,
+      build_duration_ms: version.build_duration_ms,
+      deployed_at: new Date(),
+      cloud_run_revision: version.cloud_run_revision,
+      source_snapshot_url: version.snapshot_url,
+      build_log_url: buildId,
+    }).where(eq(schema.versions.id, id));
+
+    // Set previous live versions to "rolled_back"
+    await db.update(schema.versions).set({
+      status: "rolled_back",
+    }).where(
+      and(
+        eq(schema.versions.sandbox_id, params.sandboxId),
+        ne(schema.versions.id, id),
+        eq(schema.versions.status, "live")
+      )
+    );
+  } else {
+    store.set(id, version);
+
+    // Set previous live versions to "rolled_back"
+    for (const [vid, v] of store.entries()) {
+      if (v.sandbox_id === params.sandboxId && v.id !== id && v.status === "live") {
+        v.status = "rolled_back";
+        v.updated_at = new Date().toISOString();
+        store.set(vid, v);
+      }
     }
   }
 
@@ -222,13 +322,24 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
       } catch {
         // Best effort
       }
+      if (_useDb) {
+        const db = getDb();
+        await db.update(schema.versions).set({
+          neon_branch_id: branch.branchId,
+        }).where(eq(schema.versions.id, id));
+      }
       await sandboxService.update(params.sandboxId, {
         neon_branch_id: branch.branchId,
       } as any);
     } catch (err: any) {
       version.status = "failed";
       version.updated_at = new Date().toISOString();
-      store.set(id, version);
+      if (_useDb) {
+        const db = getDb();
+        await db.update(schema.versions).set({ status: "failed" }).where(eq(schema.versions.id, id));
+      } else {
+        store.set(id, version);
+      }
       throw err;
     }
   }
@@ -250,9 +361,22 @@ export async function rollback(params: RollbackParams): Promise<VersionRecord> {
     throw new Error("Sandbox not found");
   }
 
-  const sandboxVersions = Array.from(store.values())
-    .filter((v) => v.sandbox_id === params.sandboxId)
-    .sort((a, b) => b.number - a.number);
+  const _useDb = useDb();
+  let sandboxVersions: VersionRecord[];
+
+  if (_useDb) {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(schema.versions)
+      .where(eq(schema.versions.sandbox_id, params.sandboxId))
+      .orderBy(desc(schema.versions.number));
+    sandboxVersions = rows.map(rowToRecord);
+  } else {
+    sandboxVersions = Array.from(store.values())
+      .filter((v) => v.sandbox_id === params.sandboxId)
+      .sort((a, b) => b.number - a.number);
+  }
 
   let targetVersion: VersionRecord | undefined;
 
@@ -285,17 +409,37 @@ export async function rollback(params: RollbackParams): Promise<VersionRecord> {
   }
 
   // Update statuses: set all to rolled_back, target to live
-  for (const [vid, v] of store.entries()) {
-    if (v.sandbox_id === params.sandboxId && v.status === "live") {
-      v.status = "rolled_back";
-      v.updated_at = new Date().toISOString();
-      store.set(vid, v);
-    }
-  }
+  if (_useDb) {
+    const db = getDb();
+    // Set all live versions to rolled_back
+    await db.update(schema.versions).set({
+      status: "rolled_back",
+    }).where(
+      and(
+        eq(schema.versions.sandbox_id, params.sandboxId),
+        eq(schema.versions.status, "live")
+      )
+    );
+    // Set target to live
+    await db.update(schema.versions).set({
+      status: "live",
+    }).where(eq(schema.versions.id, targetVersion.id));
 
-  targetVersion.status = "live";
-  targetVersion.updated_at = new Date().toISOString();
-  store.set(targetVersion.id, targetVersion);
+    targetVersion.status = "live";
+    targetVersion.updated_at = new Date().toISOString();
+  } else {
+    for (const [vid, v] of store.entries()) {
+      if (v.sandbox_id === params.sandboxId && v.status === "live") {
+        v.status = "rolled_back";
+        v.updated_at = new Date().toISOString();
+        store.set(vid, v);
+      }
+    }
+
+    targetVersion.status = "live";
+    targetVersion.updated_at = new Date().toISOString();
+    store.set(targetVersion.id, targetVersion);
+  }
 
   // If sandbox has DB, switch Neon branch
   if (sandbox.database_enabled && sandbox.neon_project_id) {
@@ -320,12 +464,34 @@ export async function rollback(params: RollbackParams): Promise<VersionRecord> {
 }
 
 export async function list(sandboxId: string): Promise<VersionRecord[]> {
+  if (useDb()) {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(schema.versions)
+      .where(eq(schema.versions.sandbox_id, sandboxId))
+      .orderBy(desc(schema.versions.number));
+    return rows.map(rowToRecord);
+  }
   return Array.from(store.values())
     .filter((v) => v.sandbox_id === sandboxId)
     .sort((a, b) => b.number - a.number);
 }
 
 export async function get(sandboxId: string, versionNumber: number): Promise<VersionRecord | null> {
+  if (useDb()) {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(schema.versions)
+      .where(
+        and(
+          eq(schema.versions.sandbox_id, sandboxId),
+          eq(schema.versions.number, versionNumber)
+        )
+      );
+    return row ? rowToRecord(row) : null;
+  }
   const version = Array.from(store.values()).find(
     (v) => v.sandbox_id === sandboxId && v.number === versionNumber
   );
@@ -333,8 +499,22 @@ export async function get(sandboxId: string, versionNumber: number): Promise<Ver
 }
 
 export async function getSourceDownloadUrl(versionId: string): Promise<string> {
-  const version = store.get(versionId);
   const bucket = process.env.GCS_BUCKET_SNAPSHOTS || "nexus-snapshots";
+
+  if (useDb()) {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(schema.versions)
+      .where(eq(schema.versions.id, versionId));
+    if (row?.source_snapshot_url) {
+      const objectPath = row.source_snapshot_url.replace(/^gs:\/\/[^/]+\//, "");
+      return `https://storage.googleapis.com/${bucket}/${objectPath}?X-Goog-Signature=signed`;
+    }
+    return `https://storage.googleapis.com/${bucket}/source.tar.gz?X-Goog-Signature=signed`;
+  }
+
+  const version = store.get(versionId);
   if (version?.snapshot_url) {
     const objectPath = version.snapshot_url.replace(/^gs:\/\/[^/]+\//, "");
     return `https://storage.googleapis.com/${bucket}/${objectPath}?X-Goog-Signature=signed`;

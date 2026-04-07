@@ -5,8 +5,9 @@ import { DeployDropzone } from "../../../components/deploy-dropzone";
 import { TtlSlider } from "../../../components/ttl-slider";
 import { BuildLogStream } from "../../../components/build-log-stream";
 
+import { API_BASE, getSession } from "../../../lib/auth";
+
 const NAME_REGEX = /^[a-z][a-z0-9-]*[a-z0-9]$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function CreateSandboxPage() {
   const [name, setName] = useState("");
@@ -59,9 +60,10 @@ export default function CreateSandboxPage() {
         })
       );
 
+      const token = getSession();
       const res = await fetch(`${API_BASE}/api/sandboxes`, {
         method: "POST",
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 

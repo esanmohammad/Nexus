@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+@theme {
+  --color-glass: rgba(255, 255, 255, 0.05);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-glass-hover: rgba(255, 255, 255, 0.1);
+  --color-surface: #0a0a0f;
+  --color-surface-raised: #12121a;
+  --color-accent: #6366f1;
+  --color-accent-glow: rgba(99, 102, 241, 0.25);
+  --color-cyan: #22d3ee;
+  --color-cyan-glow: rgba(34, 211, 238, 0.2);
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #71717a;
+  --color-text-muted: #3f3f46;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Animated gradient background */
+.bg-grid {
+  background-image:
+    radial-gradient(circle at 25% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 75% 100%, rgba(34, 211, 238, 0.06) 0%, transparent 50%);
+}
+
+/* Glass panel */
+.glass {
+  background: var(--color-glass);
+  border: 1px solid var(--color-glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass:hover {
+  background: var(--color-glass-hover);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Glow ring on focus */
+input:focus, button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+}
+
+/* Subtle glow for accent buttons */
+.glow-accent {
+  box-shadow: 0 0 20px var(--color-accent-glow), 0 0 60px rgba(99, 102, 241, 0.1);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px var(--color-cyan-glow);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+/* Smooth transitions everywhere */
+* {
+  transition-property: background-color, border-color, box-shadow, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}

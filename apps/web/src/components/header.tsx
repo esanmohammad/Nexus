@@ -1,43 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth, login, logout } from "../lib/auth";
+import { useAuth, logout } from "../lib/auth";
 
 export function Header() {
   const { user, isLoading, isAuthenticated } = useAuth();
 
   return (
-    <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-gray-900">
-          Nexus
+    <header className="glass border-b border-glass-border sticky top-0 z-50">
+      <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-cyan flex items-center justify-center glow-accent">
+            <span className="text-white font-bold text-sm">N</span>
+          </div>
+          <span className="text-lg font-semibold text-text-primary tracking-tight">
+            Nexus
+          </span>
         </Link>
 
         <div className="flex items-center gap-3">
           {isLoading ? (
-            <span className="text-sm text-gray-400">Loading...</span>
+            <div className="w-20 h-4 rounded bg-glass animate-pulse" />
           ) : isAuthenticated && user ? (
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
+              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full glass">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-accent to-cyan flex items-center justify-center text-[10px] font-bold text-white">
                   {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
                 </div>
-                <span className="text-sm text-gray-700">{user.email}</span>
+                <span className="text-sm text-text-secondary">
+                  {user.email}
+                </span>
               </div>
               <button
                 onClick={logout}
-                className="text-sm text-gray-500 hover:text-gray-700 min-h-[44px] px-2"
+                className="text-sm text-text-muted hover:text-text-secondary px-2 py-1"
               >
-                Logout
+                Sign out
               </button>
             </div>
           ) : (
-            <button
-              onClick={login}
-              className="text-sm px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 min-h-[44px]"
+            <Link
+              href="/login"
+              className="text-sm px-5 py-2 rounded-full bg-gradient-to-r from-accent to-indigo-400 text-white font-medium hover:opacity-90 glow-accent"
             >
-              Login
-            </button>
+              Sign in
+            </Link>
           )}
         </div>
       </div>

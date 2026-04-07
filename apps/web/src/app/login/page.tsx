@@ -3,14 +3,27 @@
 import { login } from "../../lib/auth";
 
 export default function LoginPage() {
+  function handleLogin() {
+    login();
+  }
+
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Nexus</h1>
-      <p className="text-gray-500 mb-8">Ship AI-generated apps internally</p>
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-cyan flex items-center justify-center mb-6 glow-accent">
+        <span className="text-white font-bold text-2xl">N</span>
+      </div>
+
+      <h1 className="text-3xl font-bold text-text-primary tracking-tight mb-1">
+        Welcome to Nexus
+      </h1>
+      <p className="text-text-secondary mb-10">
+        Ship AI-generated apps internally
+      </p>
 
       <button
-        onClick={login}
-        className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 min-h-[44px]"
+        onClick={handleLogin}
+        type="button"
+        className="flex items-center gap-3 px-8 py-3.5 glass rounded-xl hover:border-accent/30 cursor-pointer text-sm font-medium text-text-primary min-h-[44px]"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path
@@ -32,6 +45,10 @@ export default function LoginPage() {
         </svg>
         Sign in with Google
       </button>
+
+      <p className="mt-6 text-xs text-text-muted">
+        Dev mode &mdash; click to auto-authenticate
+      </p>
     </div>
   );
 }

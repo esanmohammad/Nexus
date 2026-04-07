@@ -1,10 +1,10 @@
 import { cloudRunServices } from "../lib/gcp.js";
 
-const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID || "";
-const GCP_REGION = process.env.GCP_REGION || "us-central1";
+function getProjectId() { return process.env.GCP_PROJECT_ID || ""; }
+function getRegion() { return process.env.GCP_REGION || "us-central1"; }
 
 function servicePath(sandboxName: string) {
-  return `projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/services/sandbox-${sandboxName}`;
+  return `projects/${getProjectId()}/locations/${getRegion()}/services/sandbox-${sandboxName}`;
 }
 
 export interface CreateServiceParams {
@@ -31,12 +31,12 @@ export async function createService(
     { name: "SANDBOX_NAME", value: sandboxName },
     { name: "SANDBOX_ID", value: sandboxId || sandboxName },
     { name: "VERSION", value: String(version) },
-    { name: "PORT", value: String(port) },
     ...Object.entries(envVars).map(([name, value]) => ({ name, value })),
   ];
 
-  const [response] = await cloudRunServices.createService({
-    parent: `projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}`,
+  // createService returns an LRO — wait for it to complete
+  const [operation] = await cloudRunServices.createService({
+    parent: `projects/${getProjectId()}/locations/${getRegion()}`,
     serviceId: `sandbox-${sandboxName}`,
     service: {
       labels: {
@@ -66,13 +66,35 @@ export async function createService(
     },
   });
 
+  // Wait for the LRO to finish
+  const [service] = await (operation as any).promise();
+
+  const serviceUrl =
+    service?.uri ||
+    service?.status?.url ||
+    `https://sandbox-${sandboxName}-${getProjectId()}.${getRegion()}.run.app`;
+
+  // Make the service publicly accessible
+  try {
+    await cloudRunServices.setIamPolicy({
+      resource: servicePath(sandboxName),
+      policy: {
+        bindings: [
+          {
+            role: "roles/run.invoker",
+            members: ["allUsers"],
+          },
+        ],
+      },
+    });
+  } catch (err) {
+    console.error("Failed to set public access:", err);
+  }
+
   return {
-    serviceUrl:
-      (response as any).status?.url ||
-      (response as any).uri ||
-      `https://sandbox-${sandboxName}-abc123-uc.a.run.app`,
+    serviceUrl,
     revisionName:
-      (response as any).latestCreatedRevisionName ||
+      service?.latestCreatedRevisionName ||
       `sandbox-${sandboxName}-00001`,
   };
 }
@@ -96,12 +118,11 @@ export async function deployRevision(
 
   const envArray = [
     { name: "SANDBOX_NAME", value: sandboxName },
-    { name: "PORT", value: String(port) },
     ...(version ? [{ name: "VERSION", value: String(version) }] : []),
     ...Object.entries(envVars).map(([name, value]) => ({ name, value })),
   ];
 
-  const [response] = await cloudRunServices.updateService({
+  const [operation] = await cloudRunServices.updateService({
     service: {
       name: servicePath(sandboxName),
       template: {
@@ -116,9 +137,11 @@ export async function deployRevision(
     },
   });
 
+  const [service] = await (operation as any).promise();
+
   return {
     revisionName:
-      (response as any).latestCreatedRevisionName ||
+      service?.latestCreatedRevisionName ||
       `sandbox-${sandboxName}-00002`,
   };
 }
@@ -133,7 +156,7 @@ export async function shiftTraffic(
 ): Promise<void> {
   const { sandboxName, revisionName } = params;
 
-  await cloudRunServices.updateService({
+  const [operation] = await cloudRunServices.updateService({
     service: {
       name: servicePath(sandboxName),
       traffic: [
@@ -145,17 +168,20 @@ export async function shiftTraffic(
       ],
     },
   });
+
+  await (operation as any).promise();
 }
 
 export async function deleteService(sandboxName: string): Promise<void> {
   try {
-    await cloudRunServices.deleteService({
+    const [operation] = await cloudRunServices.deleteService({
       name: servicePath(sandboxName),
     });
+    await (operation as any).promise();
   } catch (err: unknown) {
     const error = err as { code?: number };
     if (error.code === 404 || error.code === 5) {
-      return; // Already deleted, idempotent
+      return;
     }
     throw err;
   }
@@ -168,7 +194,7 @@ export async function getServiceUrl(
     const [service] = await cloudRunServices.getService({
       name: servicePath(sandboxName),
     });
-    return (service as any).status?.url || (service as any).uri || null;
+    return (service as any).uri || (service as any).status?.url || null;
   } catch (err: unknown) {
     const error = err as { code?: number };
     if (error.code === 404 || error.code === 5) {

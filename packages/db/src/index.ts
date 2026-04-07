@@ -18,3 +18,6 @@ export function createDb(databaseUrl: string) {
 export type Db = ReturnType<typeof createDb>;
 
 export { sandboxSchema, versionSchema, auditLogSchema };
+
+// Re-export drizzle-orm operators so consumers don't need a direct dependency
+export { eq, ne, and, or, desc, asc, gt, gte, lt, lte, isNull, isNotNull } from "drizzle-orm";

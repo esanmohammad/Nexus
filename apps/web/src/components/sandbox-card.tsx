@@ -27,34 +27,35 @@ function expiryCountdown(dateStr: string): string {
   const diff = new Date(dateStr).getTime() - Date.now();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
   if (days <= 0) return "Expired";
-  return `Expires in ${days} days`;
+  return `${days}d remaining`;
 }
 
 export function SandboxCard({ sandbox }: { sandbox: Sandbox }) {
   const url = sandbox.cloud_run_url;
-  const truncatedUrl = url && url.length > 40 ? url.slice(0, 40) + "..." : url;
 
   return (
-    <Link href={`/sandboxes/${sandbox.id}`} className="block">
-      <div className="rounded-lg border border-gray-200 p-4 hover:border-gray-400 hover:shadow-sm transition-all">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-gray-900">{sandbox.name}</h3>
+    <Link href={`/sandboxes/${sandbox.id}`} className="block group">
+      <div className="glass rounded-2xl p-5 hover:border-accent/30 group-hover:shadow-[0_0_30px_rgba(99,102,241,0.08)] transition-all duration-300">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="text-base font-semibold text-text-primary group-hover:text-white">
+              {sandbox.name}
+            </h3>
+            {sandbox.current_version && (
+              <p className="text-xs text-text-muted mt-0.5">
+                v{sandbox.current_version} &middot; {relativeTime(sandbox.updated_at)}
+              </p>
+            )}
+          </div>
           <StatusBadge status={sandbox.state} />
         </div>
 
-        {sandbox.current_version && (
-          <p className="text-sm text-gray-500">
-            v{sandbox.current_version} &middot; {sandbox.owner_email} &middot;{" "}
-            {relativeTime(sandbox.updated_at)}
-          </p>
+        {url && (
+          <p className="text-xs text-cyan/60 truncate font-mono mb-3">{url}</p>
         )}
 
-        {truncatedUrl && (
-          <p className="text-sm text-blue-600 mt-1 truncate">{truncatedUrl}</p>
-        )}
-
-        <div className="flex items-center justify-between mt-3">
-          <span className="text-xs text-gray-400">
+        <div className="flex items-center justify-between pt-3 border-t border-glass-border">
+          <span className="text-[11px] text-text-muted font-medium uppercase tracking-wider">
             {expiryCountdown(sandbox.expires_at)}
           </span>
           <div className="flex gap-2">
@@ -64,7 +65,7 @@ export function SandboxCard({ sandbox }: { sandbox: Sandbox }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 min-h-[44px] flex items-center"
+                className="text-xs px-3 py-1.5 rounded-lg glass text-text-secondary hover:text-text-primary"
               >
                 Open
               </a>
@@ -72,7 +73,7 @@ export function SandboxCard({ sandbox }: { sandbox: Sandbox }) {
             <Link
               href={`/sandboxes/${sandbox.id}/deploy`}
               onClick={(e) => e.stopPropagation()}
-              className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 min-h-[44px] flex items-center"
+              className="text-xs px-3 py-1.5 rounded-lg bg-accent/20 text-accent hover:bg-accent/30 font-medium"
             >
               Deploy
             </Link>

@@ -6,7 +6,7 @@ import {
   timestamp,
   pgEnum,
 } from "drizzle-orm/pg-core";
-import { sandboxes } from "./sandboxes.js";
+import { sandboxes } from "./sandboxes";
 
 export const versionStatusEnum = pgEnum("version_status", [
   "building",

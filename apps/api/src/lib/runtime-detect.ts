@@ -28,15 +28,21 @@ export function detectRuntime(
   files: string[],
   fileContents: Record<string, string>
 ): RuntimeDetectionResult {
-  // 1. Dockerfile present — use as-is
+  // 1. Dockerfile present — use as-is, unless it's incompatible with the project
   if (files.includes("Dockerfile") && fileContents["Dockerfile"]) {
     const dockerfile = fileContents["Dockerfile"];
-    return {
-      runtime: "dockerfile",
-      dockerfile,
-      port: parseExposePort(dockerfile),
-      confidence: "high",
-    };
+    // Check if Dockerfile uses npm but project requires pnpm (workspace: protocol)
+    const needsPnpm = files.includes("pnpm-lock.yaml") || files.includes("pnpm-workspace.yaml");
+    const dockerfileUsesNpm = /npm (ci|install)/.test(dockerfile) && !/pnpm/.test(dockerfile);
+    if (!(needsPnpm && dockerfileUsesNpm)) {
+      return {
+        runtime: "dockerfile",
+        dockerfile,
+        port: parseExposePort(dockerfile),
+        confidence: "high",
+      };
+    }
+    // Fall through to auto-detection if Dockerfile is incompatible
   }
 
   // 2. package.json detection
@@ -59,6 +65,66 @@ export function detectRuntime(
         port,
         buildCommand: "npm run build",
         startCommand: "npm start",
+        confidence: "high",
+      };
+    }
+
+    // Vite / CRA / static SPA — build produces static files, serve with nginx
+    const hasVite = deps.vite || files.some((f) => /^(vite\.config\.(ts|js|mjs)|apps\/[^/]+\/vite\.config\.(ts|js|mjs))$/.test(f));
+    const hasCRA = deps["react-scripts"];
+    if (hasVite || hasCRA) {
+      const port = 8080;
+      // Detect package manager
+      const hasPnpmLock = files.includes("pnpm-lock.yaml");
+      const hasYarnLock = files.includes("yarn.lock");
+      const hasPnpmWorkspaces = files.includes("pnpm-workspace.yaml");
+      const usePnpm = hasPnpmLock || hasPnpmWorkspaces || (pkg.packageManager && pkg.packageManager.startsWith("pnpm"));
+      const useYarn = !usePnpm && hasYarnLock;
+      // Detect if it's a monorepo (turborepo / workspaces)
+      const isTurbo = files.includes("turbo.json") || pkg.workspaces || hasPnpmWorkspaces;
+
+      const installCmd = usePnpm
+        ? "RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile 2>/dev/null || pnpm install"
+        : useYarn
+          ? "RUN yarn install --frozen-lockfile 2>/dev/null || yarn install"
+          : "RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi";
+
+      // Ensure typescript is available and build; use PATH trick for pnpm global bins
+      const buildCmd = isTurbo
+        ? usePnpm
+          ? "RUN pnpm add -w typescript 2>/dev/null; pnpm run build 2>/dev/null || pnpm turbo run build 2>/dev/null || true"
+          : "RUN npm install typescript 2>/dev/null; npx turbo run build 2>/dev/null || npm run build 2>/dev/null || true"
+        : usePnpm
+          ? "RUN pnpm add -w typescript 2>/dev/null; pnpm run build"
+          : "RUN npm run build";
+
+      // Multi-stage: build with node, then collect static output and serve with nginx
+      const dockerfile = [
+        "FROM node:22-slim AS build",
+        "WORKDIR /app",
+        "COPY . .",
+        installCmd,
+        buildCmd,
+        // Collect built static files into a known location
+        "RUN mkdir -p /static && \\",
+        "  (cp -r /app/dist/* /static/ 2>/dev/null || true) && \\",
+        "  (cp -r /app/build/* /static/ 2>/dev/null || true) && \\",
+        "  (cp -r /app/apps/web/dist/* /static/ 2>/dev/null || true) && \\",
+        "  (cp -r /app/apps/web/build/* /static/ 2>/dev/null || true) && \\",
+        '  ([ -f /static/index.html ] || cp -r /app/public/* /static/ 2>/dev/null || true) && \\',
+        '  ([ -f /static/index.html ] || echo "<html><body>Build output not found</body></html>" > /static/index.html)',
+        "",
+        "FROM nginx:alpine",
+        "COPY --from=build /static /usr/share/nginx/html",
+        'RUN echo "server { listen 8080; root /usr/share/nginx/html; location / { try_files \\$uri /index.html; } }" > /etc/nginx/conf.d/default.conf',
+        `EXPOSE ${port}`,
+        'CMD ["nginx", "-g", "daemon off;"]',
+      ].join("\n");
+      return {
+        runtime: "static",
+        dockerfile,
+        port,
+        buildCommand: "build",
         confidence: "high",
       };
     }

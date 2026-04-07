@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config({ path: new URL("../../../.env", import.meta.url).pathname });
+
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";

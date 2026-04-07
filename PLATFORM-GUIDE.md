@@ -35,17 +35,17 @@ GCP provides compute (Cloud Run), container builds (Cloud Build), storage (GCS),
 ```bash
 # Install gcloud CLI: https://cloud.google.com/sdk/docs/install
 gcloud auth login
-gcloud projects create nexus-dev --name="Nexus Dev"
-gcloud config set project nexus-dev
+gcloud projects create nexus-platform-dev --name="Nexus Dev"
+gcloud config set project nexus-platform-dev
 gcloud billing accounts list  # Find your billing account ID
-gcloud billing projects link nexus-dev --billing-account=YOUR_BILLING_ACCOUNT_ID
+gcloud billing projects link nexus-platform-dev --billing-account=YOUR_BILLING_ACCOUNT_ID
 ```
 
 **Where to find:** Console → IAM & Admin → Settings → Project ID
 
 **Env var:**
 ```
-GCP_PROJECT_ID=nexus-dev
+GCP_PROJECT_ID=nexus-platform-dev
 GCP_REGION=us-central1
 ```
 
@@ -75,7 +75,7 @@ gcloud artifacts repositories create sandboxes \
 
 **Env var:**
 ```
-ARTIFACT_REGISTRY=us-central1-docker.pkg.dev/nexus-dev/sandboxes
+ARTIFACT_REGISTRY=us-central1-docker.pkg.dev/nexus-platform-dev/sandboxes
 ```
 
 **Where to find:** Console → Artifact Registry → Repositories
@@ -101,15 +101,15 @@ GCS_BUCKET_SNAPSHOTS=nexus-snapshots
 Cloud Build needs permission to push images to Artifact Registry and deploy to Cloud Run.
 
 ```bash
-PROJECT_NUMBER=$(gcloud projects describe nexus-dev --format='value(projectNumber)')
+PROJECT_NUMBER=$(gcloud projects describe nexus-platform-dev --format='value(projectNumber)')
 
 # Permission to push container images
-gcloud projects add-iam-policy-binding nexus-dev \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
   --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
   --role="roles/artifactregistry.writer"
 
 # Permission to deploy to Cloud Run
-gcloud projects add-iam-policy-binding nexus-dev \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
   --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
   --role="roles/run.admin"
 
@@ -120,7 +120,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --role="roles/iam.serviceAccountUser"
 ```
 
-**Verify:** `gcloud projects get-iam-policy nexus-dev`
+**Verify:** `gcloud projects get-iam-policy nexus-platform-dev`
 
 ### 1.7 Google OAuth 2.0 (Authentication)
 
@@ -158,25 +158,25 @@ gcloud iam service-accounts create nexus-dev-sa \
   --display-name="Nexus Dev Service Account"
 
 # Grant roles
-gcloud projects add-iam-policy-binding nexus-dev \
-  --member="serviceAccount:nexus-dev-sa@nexus-dev.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
+  --member="serviceAccount:nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com" \
   --role="roles/cloudbuild.builds.editor"
 
-gcloud projects add-iam-policy-binding nexus-dev \
-  --member="serviceAccount:nexus-dev-sa@nexus-dev.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
+  --member="serviceAccount:nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com" \
   --role="roles/run.admin"
 
-gcloud projects add-iam-policy-binding nexus-dev \
-  --member="serviceAccount:nexus-dev-sa@nexus-dev.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
+  --member="serviceAccount:nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com" \
   --role="roles/storage.admin"
 
-gcloud projects add-iam-policy-binding nexus-dev \
-  --member="serviceAccount:nexus-dev-sa@nexus-dev.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding nexus-platform-dev \
+  --member="serviceAccount:nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.writer"
 
 # Download key (KEEP SECRET — never commit this file)
 gcloud iam service-accounts keys create ./nexus-sa-key.json \
-  --iam-account=nexus-dev-sa@nexus-dev.iam.gserviceaccount.com
+  --iam-account=nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com
 ```
 
 **Usage (local only):**
@@ -196,7 +196,7 @@ gcloud scheduler jobs create http cleanup-cycle \
   --schedule="*/15 * * * *" \
   --uri="https://YOUR_API_CLOUD_RUN_URL/api/internal/cleanup" \
   --http-method=POST \
-  --oidc-service-account-email=nexus-dev-sa@nexus-dev.iam.gserviceaccount.com \
+  --oidc-service-account-email=nexus-dev-sa@nexus-platform-dev.iam.gserviceaccount.com \
   --location=us-central1
 ```
 
@@ -577,10 +577,10 @@ Complete `.env` file with every variable, grouped by service and wave.
 # ═══════════════════════════════════════════════════════════════
 # GCP — Required from Wave 0
 # ═══════════════════════════════════════════════════════════════
-GCP_PROJECT_ID=nexus-dev
+GCP_PROJECT_ID=nexus-platform-dev
 GCP_REGION=us-central1
 GCS_BUCKET_SNAPSHOTS=nexus-snapshots
-ARTIFACT_REGISTRY=us-central1-docker.pkg.dev/nexus-dev/sandboxes
+ARTIFACT_REGISTRY=us-central1-docker.pkg.dev/nexus-platform-dev/sandboxes
 
 # ═══════════════════════════════════════════════════════════════
 # Neon — Required from Wave 0 (control plane DB)
@@ -695,7 +695,7 @@ NODE_ENV=development
 □ pnpm 9 installed
 □ Docker installed
 □ gcloud CLI installed and authenticated
-□ GCP project created (nexus-dev)
+□ GCP project created (nexus-platform-dev)
 □ GCP APIs enabled (6 APIs)
 □ Artifact Registry repo created (sandboxes)
 □ GCS bucket created (nexus-snapshots)
