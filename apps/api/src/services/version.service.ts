@@ -51,7 +51,7 @@ function rowToRecord(row: any): VersionRecord {
 const store: Map<string, VersionRecord> = new Map();
 
 function generateId(): string {
-  return `version-${crypto.randomUUID()}`;
+  return crypto.randomUUID();
 }
 
 // Seed test fixture: version 1 for sandbox-1
@@ -121,8 +121,26 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
     throw new Error("Sandbox not found");
   }
 
-  const number = (sandbox.current_version || 0) + 1;
   const _useDb = useDb();
+
+  // Determine next version number from the highest existing version, not just current_version
+  let number: number;
+  if (_useDb) {
+    const db = getDb();
+    const [maxRow] = await db
+      .select({ maxNum: schema.versions.number })
+      .from(schema.versions)
+      .where(eq(schema.versions.sandbox_id, params.sandboxId))
+      .orderBy(desc(schema.versions.number))
+      .limit(1);
+    const maxExisting = maxRow?.maxNum || sandbox.current_version || 0;
+    number = Math.max(maxExisting, sandbox.current_version || 0) + 1;
+  } else {
+    const existingVersions = Array.from(store.values())
+      .filter((v) => v.sandbox_id === params.sandboxId);
+    const maxExisting = existingVersions.reduce((max, v) => Math.max(max, v.number), 0);
+    number = Math.max(maxExisting, sandbox.current_version || 0) + 1;
+  }
 
   // If this sandbox has a current_version but no version records in our store,
   // create a synthetic record for the previous version(s)
@@ -206,9 +224,81 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
     store.set(id, version);
   }
 
+  // Flatten ZIP (GitHub archives wrap files in a subdirectory)
+  let sourceToUpload = params.sourceBuffer;
+  let files: string[] = ["package.json"];
+  let fileContents: Record<string, string> = {};
+
+  try {
+    const AdmZip = (await import("adm-zip")).default;
+    const zip = new AdmZip(params.sourceBuffer);
+    const entries = zip.getEntries();
+
+    if (entries.length > 0) {
+      // Detect common prefix (e.g. "repo-name-branch/")
+      const entryNames = entries.map((e: any) => e.entryName);
+      const firstSlash = entryNames[0].indexOf("/");
+      let prefix = "";
+      if (firstSlash > 0) {
+        const candidate = entryNames[0].slice(0, firstSlash + 1);
+        if (entryNames.every((n: string) => n.startsWith(candidate))) {
+          prefix = candidate;
+        }
+      }
+
+      files = entries
+        .map((e: any) => (prefix ? e.entryName.replace(prefix, "") : e.entryName))
+        .filter((n: string) => n && !n.endsWith("/"));
+
+      // Read key files for runtime detection
+      for (const entry of entries) {
+        const name = prefix ? entry.entryName.replace(prefix, "") : entry.entryName;
+        if (!name || name.endsWith("/")) continue;
+        if (["package.json", "requirements.txt", "pyproject.toml", "go.mod", "Dockerfile", "index.html"].includes(name)) {
+          fileContents[name] = entry.getData().toString("utf-8");
+        }
+      }
+
+      // Rebuild flattened ZIP
+      const flatZip = new AdmZip();
+      for (const entry of entries) {
+        const flatName = prefix ? entry.entryName.replace(prefix, "") : entry.entryName;
+        if (!flatName) continue;
+        if (entry.isDirectory) {
+          flatZip.addFile(flatName, Buffer.alloc(0));
+        } else {
+          flatZip.addFile(flatName, entry.getData());
+        }
+      }
+
+      // Inject Dockerfile if missing
+      if (!fileContents["Dockerfile"]) {
+        const { detectRuntime } = await import("../lib/runtime-detect.js");
+        let detection;
+        try {
+          detection = detectRuntime(files, fileContents);
+        } catch {}
+        if (!detection) {
+          detection = {
+            runtime: "nodejs" as const,
+            dockerfile: "FROM node:22-slim\nWORKDIR /app\nCOPY . .\nRUN npm install --production 2>/dev/null || true\nEXPOSE 8080\nCMD [\"node\", \"index.js\"]",
+            port: 8080,
+            confidence: "low" as const,
+          };
+        }
+        flatZip.deleteFile("Dockerfile");
+        flatZip.addFile("Dockerfile", Buffer.from(detection.dockerfile, "utf-8"));
+      }
+
+      sourceToUpload = flatZip.toBuffer();
+    }
+  } catch (zipErr) {
+    console.error("ZIP flattening error in deploy:", zipErr);
+  }
+
   // Upload snapshot
   try {
-    const snapshotUrl = await uploadSnapshot(sandbox.name, number, params.sourceBuffer);
+    const snapshotUrl = await uploadSnapshot(sandbox.name, number, sourceToUpload);
     version.snapshot_url = snapshotUrl || `gs://nexus-snapshots/${sandbox.name}/v${number}/source.tar.gz`;
   } catch {
     version.snapshot_url = `gs://nexus-snapshots/${sandbox.name}/v${number}/source.tar.gz`;
@@ -221,8 +311,8 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
       sandboxName: sandbox.name,
       version: number,
       snapshotUrl: version.snapshot_url,
-      dockerfile: "FROM node:22\nCMD node index.js",
-      imageTag: `registry/${sandbox.name}:v${number}`,
+      dockerfile: fileContents["Dockerfile"] || "FROM node:22\nCMD node index.js",
+      imageTag: `${process.env.ARTIFACT_REGISTRY || "registry"}/${sandbox.name}:v${number}`,
     });
     buildId = buildTrigger?.buildId || "unknown";
   } catch {
@@ -240,7 +330,7 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
 
   // Handle undefined buildResult as success with defaults
   if (!buildResult) {
-    buildResult = { success: true, buildId, imageUrl: `registry/${sandbox.name}:v${number}`, durationMs: 0 };
+    buildResult = { success: true, buildId, imageUrl: `${process.env.ARTIFACT_REGISTRY || "registry"}/${sandbox.name}:v${number}`, durationMs: 0 };
   }
 
   if (buildResult.success === false) {
@@ -264,7 +354,7 @@ export async function deploy(params: DeployParams): Promise<VersionRecord> {
 
   // Build succeeded
   version.status = "live";
-  version.image_url = buildResult.imageUrl || `registry/${sandbox.name}:v${number}`;
+  version.image_url = buildResult.imageUrl || `${process.env.ARTIFACT_REGISTRY || "registry"}/${sandbox.name}:v${number}`;
   version.build_duration_ms = buildResult.durationMs ?? 0;
   version.deployed_at = new Date().toISOString();
   version.cloud_run_revision = `sandbox-${sandbox.name}-${String(number).padStart(5, "0")}`;

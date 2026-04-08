@@ -1,15 +1,33 @@
-function mcpResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
-}
+import { getClient, mcpResult, findSandboxByName } from "./client.js";
 
 export async function handleSandboxLogs(args: {
   name: string;
   version?: number;
 }) {
   try {
-    const version = args.version || "latest";
-    // In real implementation: call SDK getBuildLog
-    return mcpResult(`Build log for "${args.name}" v${version}:\n(no log available)`);
+    if (!args.name) {
+      return mcpResult("Error: name is required");
+    }
+
+    const client = getClient();
+
+    const sandbox = await findSandboxByName(client, args.name);
+    if (!sandbox) {
+      return mcpResult(`Error: sandbox "${args.name}" not found`);
+    }
+
+    // Use provided version or fall back to current version
+    const version = args.version ?? sandbox.version ?? 1;
+
+    const log = await client.getBuildLog(sandbox.id, version);
+
+    if (!log || log.trim().length === 0) {
+      return mcpResult(
+        `Build log for "${args.name}" v${version}:\n(empty log)`
+      );
+    }
+
+    return mcpResult(`Build log for "${args.name}" v${version}:\n${log}`);
   } catch (err: any) {
     return mcpResult(`Error fetching logs: ${err.message}`);
   }

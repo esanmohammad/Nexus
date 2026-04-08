@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "../components/providers";
 import { Header } from "../components/header";
+import { ToastProvider } from "../components/toast";
 
 export const metadata: Metadata = {
   title: "Nexus",
@@ -17,8 +18,10 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="min-h-screen bg-surface bg-grid">
         <Providers>
-          <Header />
-          <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+          <ToastProvider>
+            <Header />
+            <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+          </ToastProvider>
         </Providers>
       </body>
     </html>

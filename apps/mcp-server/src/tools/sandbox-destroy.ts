@@ -1,18 +1,28 @@
-function mcpResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
-}
+import { getClient, mcpResult, findSandboxByName } from "./client.js";
 
 export async function handleSandboxDestroy(args: {
   name: string;
   confirm: boolean;
 }) {
   try {
+    if (!args.name) {
+      return mcpResult("Error: name is required");
+    }
     if (!args.confirm) {
       return mcpResult(
         `Please confirm destruction of "${args.name}" by setting confirm: true`
       );
     }
-    // In real implementation: call SDK destroySandbox
+
+    const client = getClient();
+
+    const sandbox = await findSandboxByName(client, args.name);
+    if (!sandbox) {
+      return mcpResult(`Error: sandbox "${args.name}" not found`);
+    }
+
+    await client.destroySandbox(sandbox.id);
+
     return mcpResult(`Destroyed sandbox "${args.name}"`);
   } catch (err: any) {
     return mcpResult(`Error destroying sandbox: ${err.message}`);

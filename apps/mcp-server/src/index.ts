@@ -1,28 +1,34 @@
-// Validate required environment variables
-const NEXUS_API_URL = process.env.NEXUS_API_URL;
-if (!NEXUS_API_URL) {
-  throw new Error("NEXUS_API_URL environment variable is required");
-}
-
-const NEXUS_TOKEN = process.env.NEXUS_TOKEN;
-if (!NEXUS_TOKEN) {
-  throw new Error("NEXUS_TOKEN environment variable is required");
-}
-
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { getAllTools, handlers } from "./tools/index.js";
 
-// MCP Server setup
-// In production: use @modelcontextprotocol/sdk Server + StdioServerTransport
-// For now: export for testing
+const server = new Server(
+  { name: "nexus", version: "0.1.0" },
+  { capabilities: { tools: {} } }
+);
 
-export const server = {
-  name: "nexus",
-  version: "0.1.0",
-  capabilities: { tools: {} },
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: getAllTools(),
-  handlers,
-  apiUrl: NEXUS_API_URL,
-  token: NEXUS_TOKEN,
-};
+}));
 
-export default server;
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const handler = handlers[name];
+  if (!handler) {
+    return {
+      content: [{ type: "text" as const, text: `Unknown tool: ${name}` }],
+    };
+  }
+  return handler(args || {});
+});
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch(console.error);

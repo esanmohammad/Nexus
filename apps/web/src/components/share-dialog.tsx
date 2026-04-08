@@ -46,9 +46,9 @@ export function ShareDialog({ sandboxId, sandboxUrl, currentMode, onClose }: Pro
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-4">Share Sandbox</h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-surface-raised border border-glass-border rounded-2xl shadow-xl p-6 w-full max-w-md">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Share Sandbox</h2>
 
         <div className="space-y-2 mb-4">
           {modes.map((m) => (
@@ -59,9 +59,9 @@ export function ShareDialog({ sandboxId, sandboxUrl, currentMode, onClose }: Pro
                 value={m.value}
                 checked={mode === m.value}
                 onChange={() => setMode(m.value)}
-                className="min-h-[44px]"
+                className="min-h-[44px] accent-accent"
               />
-              <span className="text-sm">{m.label}</span>
+              <span className="text-sm text-text-primary">{m.label}</span>
             </label>
           ))}
         </div>
@@ -71,36 +71,36 @@ export function ShareDialog({ sandboxId, sandboxUrl, currentMode, onClose }: Pro
             value={emails}
             onChange={(e) => setEmails(e.target.value)}
             placeholder="email1@co.com, email2@co.com"
-            className="w-full border rounded p-2 text-sm mb-4"
+            className="w-full border border-glass-border bg-glass rounded-xl p-2 text-sm text-text-primary placeholder:text-text-muted mb-4 transition-colors focus:border-accent focus:outline-none"
             rows={3}
           />
         )}
 
-        <div className="flex items-center gap-2 mb-4 p-2 bg-gray-50 rounded text-sm">
-          <span className="truncate flex-1">{sandboxUrl}</span>
+        <div className="flex items-center gap-2 mb-4 p-2 bg-glass rounded-xl text-sm">
+          <span className="truncate flex-1 text-text-secondary">{sandboxUrl}</span>
           <button
             onClick={() => navigator.clipboard.writeText(sandboxUrl)}
-            className="text-xs px-2 py-1 border rounded hover:bg-gray-100 min-h-[44px]"
+            className="text-xs px-2 py-1 border border-glass-border rounded-xl text-text-primary hover:bg-glass-hover min-h-[44px] transition-colors"
           >
             Copy
           </button>
         </div>
 
         {success && (
-          <p className="text-sm text-green-600 mb-4">Access updated!</p>
+          <p className="text-sm text-success mb-4">Access updated!</p>
         )}
 
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm border rounded hover:bg-gray-50 min-h-[44px]"
+            className="px-4 py-2 text-sm text-text-primary border border-glass-border rounded-xl hover:bg-glass-hover min-h-[44px] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleUpdate}
             disabled={saving}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 min-h-[44px]"
+            className="px-4 py-2 text-sm bg-accent text-white rounded-xl hover:bg-accent/90 disabled:opacity-50 min-h-[44px] transition-colors"
           >
             {saving ? "Updating..." : "Update access"}
           </button>

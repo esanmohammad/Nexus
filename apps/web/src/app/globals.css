@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-glass: rgba(255, 255, 255, 0.05);
-  --color-glass-border: rgba(255, 255, 255, 0.08);
-  --color-glass-hover: rgba(255, 255, 255, 0.1);
+  --color-glass: rgba(255, 255, 255, 0.06);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-glass-hover: rgba(255, 255, 255, 0.14);
   --color-surface: #0a0a0f;
   --color-surface-raised: #12121a;
   --color-accent: #6366f1;
@@ -11,8 +11,8 @@
   --color-cyan: #22d3ee;
   --color-cyan-glow: rgba(34, 211, 238, 0.2);
   --color-text-primary: #f0f0f5;
-  --color-text-secondary: #71717a;
-  --color-text-muted: #3f3f46;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
   --color-danger: #ef4444;
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -38,11 +38,14 @@ body {
   border: 1px solid var(--color-glass-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass:hover {
   background: var(--color-glass-hover);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 /* Glow ring on focus */
@@ -72,9 +75,21 @@ input:focus, button:focus-visible {
   border-radius: 3px;
 }
 
-/* Smooth transitions everywhere */
-* {
-  transition-property: background-color, border-color, box-shadow, opacity;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+/* Toast animations */
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateX(1rem); }
+  to { opacity: 1; transform: translateX(0); }
 }
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(1rem); }
+}
+
+/* Step progress glow */
+@keyframes step-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-accent-glow); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+.animate-step-glow { animation: step-glow 2s ease-in-out infinite; }
+
+

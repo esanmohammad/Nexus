@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { SandboxCard } from "../components/sandbox-card";
-import { DeployDropzone } from "../components/deploy-dropzone";
 import { API_BASE, getSession, useAuth } from "../lib/auth";
 
 function HeroLanding() {
@@ -36,7 +35,7 @@ function HeroLanding() {
       <div className="mt-10 flex items-center gap-4">
         <Link
           href="/login"
-          className="px-8 py-3.5 rounded-full bg-gradient-to-r from-accent to-indigo-400 text-white font-semibold text-sm hover:opacity-90 glow-accent"
+          className="px-8 py-3.5 rounded-full bg-gradient-to-r from-accent to-indigo-400 text-white font-semibold text-sm hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all glow-accent"
         >
           Get started
         </Link>
@@ -44,7 +43,7 @@ function HeroLanding() {
           href="https://github.com/esanmohammad/Nexus"
           target="_blank"
           rel="noopener noreferrer"
-          className="px-8 py-3.5 rounded-full glass text-text-secondary font-medium text-sm hover:text-text-primary"
+          className="px-8 py-3.5 rounded-full glass text-text-secondary font-medium text-sm hover:text-text-primary transition-colors"
         >
           View on GitHub
         </a>
@@ -72,9 +71,20 @@ function HeroLanding() {
   );
 }
 
+type StatusFilter = "all" | "running" | "sleeping" | "failed";
+
+const FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "running", label: "Running" },
+  { key: "sleeping", label: "Sleeping" },
+  { key: "failed", label: "Failed" },
+];
+
 export default function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const chipRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const { data: sandboxes, isLoading } = useQuery({
     queryKey: ["sandboxes"],
@@ -93,74 +103,158 @@ export default function DashboardPage() {
 
   const filtered = useMemo(() => {
     if (!sandboxes) return [];
-    const sorted = [...sandboxes].sort(
+    let list = [...sandboxes].sort(
       (a: any, b: any) =>
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
-    if (!search) return sorted;
-    return sorted.filter((s: any) =>
-      s.name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [sandboxes, search]);
+    if (statusFilter !== "all") {
+      list = list.filter((s: any) => s.state === statusFilter);
+    }
+    if (search) {
+      list = list.filter((s: any) =>
+        s.name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    return list;
+  }, [sandboxes, search, statusFilter]);
 
-  function handleFileDrop(file: File) {
-    window.location.href = `/sandboxes/new?file=${encodeURIComponent(file.name)}`;
-  }
+  // Status counts
+  const counts = useMemo(() => {
+    if (!sandboxes) return { total: 0, running: 0, sleeping: 0, failed: 0 };
+    return {
+      total: sandboxes.length,
+      running: sandboxes.filter((s: any) => s.state === "running").length,
+      sleeping: sandboxes.filter((s: any) => s.state === "sleeping").length,
+      failed: sandboxes.filter((s: any) => s.state === "failed").length,
+    };
+  }, [sandboxes]);
 
-  // Show loading skeleton briefly
+  const handleChipKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      let nextIndex: number | null = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        nextIndex = (index + 1) % FILTERS.length;
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        nextIndex = (index - 1 + FILTERS.length) % FILTERS.length;
+      }
+      if (nextIndex !== null) {
+        setStatusFilter(FILTERS[nextIndex].key);
+        chipRefs.current[nextIndex]?.focus();
+      }
+    },
+    []
+  );
+
   if (authLoading) {
-    return <div className="min-h-screen" />;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+      </div>
+    );
   }
 
-  // Not logged in — show hero landing
   if (!isAuthenticated) {
     return <HeroLanding />;
   }
 
-  // Logged in — show dashboard
+  const isFiltered = search || statusFilter !== "all";
+
   return (
     <div className="min-h-screen">
-      {/* Nexus Dashboard */}
-      <section className="text-center pt-16 pb-12">
-        <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-text-primary via-text-primary to-text-secondary bg-clip-text text-transparent">
-          What do you want to ship?
-        </h1>
-        <p className="mt-3 text-text-secondary text-lg">
-          Drop a ZIP to create a sandbox instantly
-        </p>
-        <div className="mt-8 max-w-lg mx-auto">
-          <DeployDropzone onFileSelect={handleFileDrop} />
+      {/* Compact heading section */}
+      <section className="pt-8 pb-4">
+        <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-2xl font-bold text-text-primary">Sandboxes</h1>
+            {sandboxes && sandboxes.length > 0 && (
+              <span className="text-sm text-text-secondary">
+                {counts.total} total{counts.running > 0 ? ` \u00b7 ${counts.running} running` : ""}
+                {counts.sleeping > 0 ? ` \u00b7 ${counts.sleeping} sleeping` : ""}
+              </span>
+            )}
+          </div>
+          <Link
+            href="/sandboxes/new"
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent to-indigo-400 text-white font-semibold text-sm hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] glow-accent transition-all whitespace-nowrap"
+          >
+            + New Sandbox
+          </Link>
         </div>
       </section>
 
-      <section className="mt-4">
-        <div className="mb-6 flex justify-center">
+      <section>
+        {/* Full-width search bar */}
+        <div className="mb-4">
           <input
             type="text"
             placeholder="Search sandboxes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full max-w-md glass rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted border border-glass-border bg-transparent text-center"
+            className="w-full glass rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-muted border border-glass-border bg-transparent"
           />
+        </div>
+
+        {/* Left-aligned filter chips with ARIA tabs */}
+        <div className="mb-6 flex justify-start gap-2" role="tablist">
+          {FILTERS.map(({ key, label }, index) => (
+            <button
+              key={key}
+              ref={(el) => { chipRefs.current[index] = el; }}
+              role="tab"
+              aria-selected={statusFilter === key}
+              tabIndex={statusFilter === key ? 0 : -1}
+              onClick={() => setStatusFilter(key)}
+              onKeyDown={(e) => handleChipKeyDown(e, index)}
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-full transition-all ${
+                statusFilter === key
+                  ? "bg-accent/20 text-accent border border-accent/30"
+                  : "glass text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              {label}
+              {key !== "all" && counts[key] > 0 && (
+                <span className="ml-1.5 text-text-muted">{counts[key]}</span>
+              )}
+            </button>
+          ))}
         </div>
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="glass rounded-2xl p-5 h-40 animate-pulse" />
+              <div key={i} className="glass rounded-2xl p-5 h-48 animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl glass flex items-center justify-center">
-              <svg className="w-8 h-8 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+          isFiltered ? (
+            /* Filtered empty state — no CTA */
+            <div className="text-center py-20">
+              <p className="text-text-muted text-sm">
+                No sandboxes match your filters.
+              </p>
             </div>
-            <p className="text-text-muted text-sm">
-              No sandboxes yet. Drop a ZIP above to create your first one.
-            </p>
-          </div>
+          ) : (
+            /* True empty state */
+            <div className="text-center py-24">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-accent/20 to-cyan/10 flex items-center justify-center">
+                <svg className="w-10 h-10 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-text-primary mb-2">Launch your first sandbox</h2>
+              <p className="text-text-secondary text-sm mb-6 max-w-sm mx-auto">
+                Upload a ZIP or connect a GitHub repo — Nexus handles the rest.
+              </p>
+              <Link
+                href="/sandboxes/new"
+                className="inline-block px-6 py-3 rounded-xl bg-gradient-to-r from-accent to-indigo-400 text-white font-semibold text-sm hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] glow-accent transition-all"
+              >
+                Create sandbox
+              </Link>
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((sandbox: any) => (

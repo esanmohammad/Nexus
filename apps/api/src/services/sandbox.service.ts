@@ -577,6 +577,28 @@ export async function create(params: CreateParams): Promise<SandboxRecord> {
     store.set(id, sandbox);
   }
 
+  // Create v1 version record so version history is populated
+  try {
+    if (_useDb) {
+      const db = getDb();
+      await db.insert(schema.versions).values({
+        sandbox_id: id,
+        number: 1,
+        status: "live",
+        created_by: params.ownerEmail,
+        label: validated.label || "Initial deployment",
+        source_snapshot_url: `gs://nexus-snapshots/${validated.name}/v1/source.zip`,
+        container_image: `${process.env.ARTIFACT_REGISTRY || "registry"}/${validated.name}:v1`,
+        cloud_run_revision: `${serviceName}-00001`,
+        build_duration_ms: 0,
+        deployed_at: new Date(),
+        created_at: new Date(),
+      });
+    }
+  } catch (vErr) {
+    console.error("Failed to create v1 version record:", vErr);
+  }
+
   // If database enabled, create Neon project
   if (validated.database) {
     const neon = await import("./neon.service.js");

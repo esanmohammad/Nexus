@@ -10,7 +10,7 @@ export function Header() {
     <header className="glass border-b border-glass-border sticky top-0 z-50">
       <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-cyan flex items-center justify-center glow-accent">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-cyan flex items-center justify-center glow-accent">
             <span className="text-white font-bold text-sm">N</span>
           </div>
           <span className="text-lg font-semibold text-text-primary tracking-tight">
@@ -33,7 +33,7 @@ export function Header() {
               </div>
               <button
                 onClick={logout}
-                className="text-sm text-text-muted hover:text-text-secondary px-2 py-1"
+                className="text-sm text-text-muted hover:text-text-secondary px-2 py-1 transition-colors"
               >
                 Sign out
               </button>
@@ -41,7 +41,7 @@ export function Header() {
           ) : (
             <Link
               href="/login"
-              className="text-sm px-5 py-2 rounded-full bg-gradient-to-r from-accent to-indigo-400 text-white font-medium hover:opacity-90 glow-accent"
+              className="text-sm px-5 py-2 rounded-full bg-gradient-to-r from-accent to-indigo-400 text-white font-medium hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all glow-accent"
             >
               Sign in
             </Link>

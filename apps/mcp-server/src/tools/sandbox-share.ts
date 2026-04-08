@@ -1,6 +1,4 @@
-function mcpResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
-}
+import { getClient, mcpResult, findSandboxByName } from "./client.js";
 
 export async function handleSandboxShare(args: {
   name: string;
@@ -8,9 +6,31 @@ export async function handleSandboxShare(args: {
   emails?: string[];
 }) {
   try {
-    return mcpResult(
-      `Updated "${args.name}" access to: ${args.access_mode}`
-    );
+    if (!args.name || !args.access_mode) {
+      return mcpResult("Error: name and access_mode are required");
+    }
+
+    const client = getClient();
+
+    const sandbox = await findSandboxByName(client, args.name);
+    if (!sandbox) {
+      return mcpResult(`Error: sandbox "${args.name}" not found`);
+    }
+
+    const input: Record<string, unknown> = {
+      access_mode: args.access_mode,
+    };
+    if (args.emails) {
+      input.allowed_emails = args.emails;
+    }
+
+    await client.shareSandbox(sandbox.id, input);
+
+    let msg = `Updated "${args.name}" access to: ${args.access_mode}`;
+    if (args.emails && args.emails.length > 0) {
+      msg += `\nAllowed emails: ${args.emails.join(", ")}`;
+    }
+    return mcpResult(msg);
   } catch (err: any) {
     return mcpResult(`Error sharing: ${err.message}`);
   }

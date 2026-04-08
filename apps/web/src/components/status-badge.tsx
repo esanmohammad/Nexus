@@ -27,7 +27,7 @@ export function StatusBadge({ status }: { status: string }) {
   const dotClass = dotColorMap[status] || "bg-text-muted";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium border ${classes}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors ${classes}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
       {status}

@@ -8,6 +8,7 @@ import { StatusBadge } from "../../../components/status-badge";
 import { VersionTimeline } from "../../../components/version-timeline";
 import { ShareDialog } from "../../../components/share-dialog";
 import { TtlSlider } from "../../../components/ttl-slider";
+import { useToast } from "../../../components/toast";
 import { API_BASE, getSession } from "../../../lib/auth";
 
 function authHeaders() {
@@ -18,6 +19,7 @@ export default function SandboxDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showShare, setShowShare] = useState(false);
   const [showExtend, setShowExtend] = useState(false);
   const [extendTtl, setExtendTtl] = useState(7);
@@ -49,31 +51,49 @@ export default function SandboxDetailPage() {
   });
 
   async function handleRollback(targetVersion: number) {
-    await fetch(`${API_BASE}/api/sandboxes/${id}/rollback`, {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ target_version: targetVersion }),
-    });
-    queryClient.invalidateQueries({ queryKey: ["sandbox", id] });
-    queryClient.invalidateQueries({ queryKey: ["versions", id] });
+    try {
+      const res = await fetch(`${API_BASE}/api/sandboxes/${id}/rollback`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ target_version: targetVersion }),
+      });
+      if (!res.ok) throw new Error("Rollback failed");
+      queryClient.invalidateQueries({ queryKey: ["sandbox", id] });
+      queryClient.invalidateQueries({ queryKey: ["versions", id] });
+      toast(`Rolled back to v${targetVersion}`, "success");
+    } catch {
+      toast("Rollback failed", "error");
+    }
   }
 
   async function handleExtend() {
-    await fetch(`${API_BASE}/api/sandboxes/${id}/extend`, {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ ttl_days: extendTtl }),
-    });
-    queryClient.invalidateQueries({ queryKey: ["sandbox", id] });
-    setShowExtend(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/sandboxes/${id}/extend`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ ttl_days: extendTtl }),
+      });
+      if (!res.ok) throw new Error("Extend failed");
+      queryClient.invalidateQueries({ queryKey: ["sandbox", id] });
+      setShowExtend(false);
+      toast(`Extended TTL by ${extendTtl} days`, "success");
+    } catch {
+      toast("Failed to extend TTL", "error");
+    }
   }
 
   async function handleDestroy() {
-    await fetch(`${API_BASE}/api/sandboxes/${id}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    });
-    window.location.href = "/";
+    try {
+      const res = await fetch(`${API_BASE}/api/sandboxes/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error("Destroy failed");
+      toast("Sandbox destroyed", "success");
+      window.location.href = "/";
+    } catch {
+      toast("Failed to destroy sandbox", "error");
+    }
   }
 
   if (isLoading) {
@@ -112,7 +132,7 @@ export default function SandboxDetailPage() {
           </span>
           <button
             onClick={() => navigator.clipboard.writeText(sandbox.cloud_run_url)}
-            className="text-xs px-3 py-2 glass rounded-lg text-text-secondary hover:text-text-primary"
+            className="text-xs px-3 py-2 glass rounded-xl text-text-secondary hover:text-text-primary transition-colors"
           >
             Copy
           </button>
@@ -120,7 +140,7 @@ export default function SandboxDetailPage() {
             href={sandbox.cloud_run_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs px-3 py-2 bg-accent/20 text-accent rounded-lg hover:bg-accent/30 font-medium"
+            className="text-xs px-3 py-2 bg-accent/20 text-accent rounded-xl hover:bg-accent/30 font-medium transition-colors"
           >
             Open
           </a>
@@ -134,47 +154,53 @@ export default function SandboxDetailPage() {
       <div className="flex gap-2 mb-8">
         <Link
           href={`/sandboxes/${id}/deploy`}
-          className="px-5 py-2.5 text-sm bg-accent text-white rounded-xl hover:bg-accent/90 font-medium"
+          className="px-6 py-3 text-sm bg-gradient-to-r from-accent to-indigo-400 text-white rounded-xl hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] font-semibold glow-accent transition-all"
         >
           Deploy new version
         </Link>
         <button
           onClick={() => setShowShare(true)}
-          className="px-5 py-2.5 text-sm glass rounded-xl text-text-secondary hover:text-text-primary"
+          className="text-xs px-3 py-2 glass rounded-xl text-text-secondary hover:text-text-primary transition-colors"
         >
           Share
         </button>
         <button
-          onClick={() => setShowExtend(true)}
-          className="px-5 py-2.5 text-sm glass rounded-xl text-text-secondary hover:text-text-primary"
+          onClick={() => setShowExtend(!showExtend)}
+          className="text-xs px-3 py-2 glass rounded-xl text-text-secondary hover:text-text-primary transition-colors"
         >
           Extend
         </button>
       </div>
 
-      {showExtend && (
-        <div className="mb-6 p-5 glass rounded-xl">
-          <h3 className="text-sm font-medium text-text-primary mb-2">Extend TTL</h3>
-          <p className="text-xs text-text-muted mb-3">
-            Current expiry: {new Date(sandbox.expires_at).toLocaleDateString()} ({expiryDays} days remaining)
-          </p>
-          <TtlSlider value={extendTtl} onChange={setExtendTtl} />
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={handleExtend}
-              className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent/90"
-            >
-              Extend
-            </button>
-            <button
-              onClick={() => setShowExtend(false)}
-              className="px-4 py-2 text-sm glass rounded-lg text-text-secondary"
-            >
-              Cancel
-            </button>
+      {/* Animated Extend TTL expansion */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-out mb-6"
+        style={{ gridTemplateRows: showExtend ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="p-5 glass rounded-xl mt-2">
+            <h3 className="text-sm font-medium text-text-primary mb-2">Extend TTL</h3>
+            <p className="text-xs text-text-muted mb-3">
+              Current expiry: {new Date(sandbox.expires_at).toLocaleDateString()} ({expiryDays} days remaining)
+            </p>
+            <TtlSlider value={extendTtl} onChange={setExtendTtl} />
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={handleExtend}
+                className="px-4 py-2 text-sm bg-accent text-white rounded-xl hover:bg-accent/90 transition-colors"
+              >
+                Extend
+              </button>
+              <button
+                onClick={() => setShowExtend(false)}
+                className="px-4 py-2 text-sm glass rounded-xl text-text-secondary transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-text-primary mb-4">
@@ -187,35 +213,51 @@ export default function SandboxDetailPage() {
         )}
       </section>
 
-      <section className="border-t border-glass-border pt-6">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Danger Zone</h2>
-        <button
-          onClick={() => setShowDestroy(!showDestroy)}
-          className="text-sm text-danger hover:underline"
-        >
-          Destroy sandbox
-        </button>
+      {/* Danger Zone */}
+      <section className="mt-8">
+        <div className="border border-danger/20 rounded-2xl p-5 bg-danger/[0.03]">
+          <h2 className="text-sm font-semibold text-danger mb-1">Danger Zone</h2>
+          <p className="text-xs text-text-muted mb-3">
+            Permanently destroy this sandbox, all versions, and associated resources.
+          </p>
+          <button
+            onClick={() => setShowDestroy(!showDestroy)}
+            className="px-4 py-2 text-sm border border-danger/30 text-danger rounded-xl hover:bg-danger/10 transition-colors"
+          >
+            Destroy sandbox...
+          </button>
 
-        {showDestroy && (
-          <div className="mt-3 p-5 glass rounded-xl border border-danger/20">
-            <p className="text-sm text-text-secondary mb-3">
-              Type <strong className="text-text-primary">{sandbox.name}</strong> to confirm:
-            </p>
-            <input
-              type="text"
-              value={confirmDestroy}
-              onChange={(e) => setConfirmDestroy(e.target.value)}
-              className="glass rounded-lg px-3 py-2 text-sm w-full mb-3 bg-transparent text-text-primary border border-glass-border"
-            />
-            <button
-              onClick={handleDestroy}
-              disabled={confirmDestroy !== sandbox.name}
-              className="px-4 py-2 text-sm bg-danger text-white rounded-lg hover:bg-danger/90 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              Destroy permanently
-            </button>
+          {/* Animate the confirmation */}
+          <div
+            className="grid transition-[grid-template-rows] duration-300 ease-out"
+            style={{ gridTemplateRows: showDestroy ? '1fr' : '0fr' }}
+          >
+            <div className="overflow-hidden">
+              <div className="mt-4 pt-4 border-t border-danger/10">
+                <p className="text-sm text-text-secondary mb-3">
+                  Type <strong className="text-text-primary">{sandbox.name}</strong> to confirm:
+                </p>
+                <input
+                  type="text"
+                  value={confirmDestroy}
+                  onChange={(e) => setConfirmDestroy(e.target.value)}
+                  className="glass rounded-xl px-3 py-2 text-sm w-full mb-3 bg-transparent text-text-primary border border-glass-border transition-colors"
+                />
+                <button
+                  onClick={handleDestroy}
+                  disabled={confirmDestroy !== sandbox.name}
+                  className={`px-4 py-2 text-sm rounded-xl transition-all ${
+                    confirmDestroy === sandbox.name
+                      ? "bg-danger text-white hover:bg-danger/90 cursor-pointer"
+                      : "bg-text-muted/20 text-text-muted cursor-not-allowed"
+                  }`}
+                  >
+                  Destroy permanently
+                </button>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </section>
 
       {showShare && (

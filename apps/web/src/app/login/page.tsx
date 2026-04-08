@@ -23,7 +23,7 @@ export default function LoginPage() {
       <button
         onClick={handleLogin}
         type="button"
-        className="flex items-center gap-3 px-8 py-3.5 glass rounded-xl hover:border-accent/30 cursor-pointer text-sm font-medium text-text-primary min-h-[44px]"
+        className="flex items-center gap-3 px-8 py-3.5 glass rounded-xl hover:border-accent/30 cursor-pointer text-sm font-medium text-text-primary min-h-[44px] transition-all"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path

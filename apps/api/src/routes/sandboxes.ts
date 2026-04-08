@@ -51,9 +51,38 @@ sandboxesRoute.post("/", async (c) => {
     );
   }
 
+  // If a github_url was provided and no real source was uploaded, download the repo as a ZIP
+  if (parsed.data.github_url && (!sourceBuffer || sourceBuffer.length === 0 || sourceBuffer.toString() === "placeholder")) {
+    try {
+      const repoUrl = parsed.data.github_url.replace(/\.git$/, "");
+      const archiveUrl = `${repoUrl}/archive/refs/heads/main.zip`;
+      const response = await fetch(archiveUrl, { redirect: "follow" });
+      if (!response.ok) {
+        // Try 'master' branch as fallback
+        const masterUrl = `${repoUrl}/archive/refs/heads/master.zip`;
+        const masterResponse = await fetch(masterUrl, { redirect: "follow" });
+        if (!masterResponse.ok) {
+          return c.json(
+            { error: { code: "BAD_REQUEST", message: `Failed to download from GitHub: ${masterResponse.statusText}` } },
+            400
+          );
+        }
+        sourceBuffer = Buffer.from(await masterResponse.arrayBuffer());
+      } else {
+        sourceBuffer = Buffer.from(await response.arrayBuffer());
+      }
+    } catch (err: any) {
+      return c.json(
+        { error: { code: "BAD_REQUEST", message: `Failed to clone GitHub repo: ${err.message}` } },
+        400
+      );
+    }
+  }
+
   try {
+    const { github_url, ...createData } = parsed.data;
     const sandbox = await sandboxService.create({
-      ...parsed.data,
+      ...createData,
       ownerEmail: user.email,
       sourceBuffer,
     });

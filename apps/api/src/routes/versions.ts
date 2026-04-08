@@ -23,12 +23,17 @@ versionsRoute.post("/", async (c) => {
 
   const contentType = c.req.header("content-type") || "";
   let config: any = {};
+  let sourceBuffer: Buffer | null = null;
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await c.req.formData();
     const configStr = formData.get("config");
+    const sourceFile = formData.get("source");
     if (configStr) {
       config = JSON.parse(typeof configStr === "string" ? configStr : await configStr.text());
+    }
+    if (sourceFile && sourceFile instanceof Blob) {
+      sourceBuffer = Buffer.from(await sourceFile.arrayBuffer());
     }
   } else {
     try {
@@ -46,13 +51,50 @@ versionsRoute.post("/", async (c) => {
     );
   }
 
-  // For now, return the sandbox with incremented version
-  const newVersion = (sandbox.current_version || 1) + 1;
-  const updated = await sandboxService.update(sandbox.id, {
-    current_version: newVersion,
-  });
+  // If a github_url was provided and no source was uploaded, download the repo as a ZIP
+  if (parsed.data.github_url && (!sourceBuffer || sourceBuffer.length === 0)) {
+    try {
+      const repoUrl = parsed.data.github_url.replace(/\.git$/, "");
+      const archiveUrl = `${repoUrl}/archive/refs/heads/main.zip`;
+      const response = await fetch(archiveUrl, { redirect: "follow" });
+      if (!response.ok) {
+        const masterUrl = `${repoUrl}/archive/refs/heads/master.zip`;
+        const masterResponse = await fetch(masterUrl, { redirect: "follow" });
+        if (!masterResponse.ok) {
+          return c.json(
+            { error: { code: "BAD_REQUEST", message: `Failed to download from GitHub: ${masterResponse.statusText}` } },
+            400
+          );
+        }
+        sourceBuffer = Buffer.from(await masterResponse.arrayBuffer());
+      } else {
+        sourceBuffer = Buffer.from(await response.arrayBuffer());
+      }
+    } catch (err: any) {
+      return c.json(
+        { error: { code: "BAD_REQUEST", message: `Failed to clone GitHub repo: ${err.message}` } },
+        400
+      );
+    }
+  }
 
-  return c.json(updated, 201);
+  // Deploy using the version service (creates version record, uploads snapshot, triggers build)
+  try {
+    const { github_url, ...deployData } = parsed.data;
+    const version = await versionService.deploy({
+      sandboxId: sandbox.id,
+      sourceBuffer: sourceBuffer || Buffer.from(""),
+      deployedBy: user.email,
+      label: deployData.label,
+      migration_sql: deployData.migration_sql,
+    });
+    return c.json(version, 201);
+  } catch (err: any) {
+    return c.json(
+      { error: { code: "DEPLOY_FAILED", message: err.message } },
+      500
+    );
+  }
 });
 
 // GET /api/sandboxes/:id/versions - List versions
@@ -65,7 +107,8 @@ versionsRoute.get("/", async (c) => {
     return c.json({ error: { code: "NOT_FOUND", message: "Sandbox not found" } }, 404);
   }
 
-  return c.json({ versions: [] });
+  const versions = await versionService.list(sandboxId || "");
+  return c.json({ versions });
 });
 
 // GET /api/sandboxes/:id/versions/:num/source - Download source
@@ -139,17 +182,16 @@ versionsRoute.post("/rollback", async (c) => {
     );
   }
 
-  if (!sandbox.current_version || sandbox.current_version <= 1) {
+  try {
+    const version = await versionService.rollback({
+      sandboxId: sandbox.id,
+      targetVersion: parsed.data.target_version,
+    });
+    return c.json(version);
+  } catch (err: any) {
     return c.json(
-      { error: { code: "BAD_REQUEST", message: "No previous version to roll back to" } },
+      { error: { code: "ROLLBACK_FAILED", message: err.message } },
       400
     );
   }
-
-  const targetVersion = parsed.data.target_version || sandbox.current_version - 1;
-  const updated = await sandboxService.update(sandbox.id, {
-    current_version: targetVersion,
-  });
-
-  return c.json(updated);
 });

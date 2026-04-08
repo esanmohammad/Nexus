@@ -29,7 +29,7 @@ export function VersionTimeline({ versions, onRollback }: Props) {
 
   return (
     <div className="relative">
-      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-glass-border" />
 
       <div className="space-y-4">
         {sorted.map((version) => {
@@ -42,21 +42,21 @@ export function VersionTimeline({ versions, onRollback }: Props) {
               <div
                 className={`absolute left-2.5 top-2 w-3 h-3 rounded-full border-2 ${
                   isLive
-                    ? "bg-green-500 border-green-500"
+                    ? "bg-success border-success"
                     : isFailed
-                      ? "bg-red-500 border-red-500"
-                      : "bg-white border-gray-300"
+                      ? "bg-danger border-danger"
+                      : "bg-surface-raised border-glass-border"
                 }`}
               />
 
-              <div className="flex-1 rounded-lg border border-gray-200 p-3">
+              <div className="flex-1 rounded-2xl border border-glass-border bg-surface-raised p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">
+                    <span className="font-semibold text-sm text-text-primary">
                       v{version.number}
                     </span>
                     {version.label && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-text-secondary">
                         {version.label}
                       </span>
                     )}
@@ -66,18 +66,18 @@ export function VersionTimeline({ versions, onRollback }: Props) {
                   {canRollback && onRollback && (
                     <button
                       onClick={() => onRollback(version.number)}
-                      className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 min-h-[44px]"
+                      className="text-xs px-2 py-1 rounded-xl border border-glass-border text-text-primary hover:bg-glass min-h-[44px] transition-colors"
                     >
                       Roll back to this version
                     </button>
                   )}
 
                   {isFailed && (
-                    <span className="text-xs text-red-500">&#10007; Error</span>
+                    <span className="text-xs text-danger">&#10007; Error</span>
                   )}
                 </div>
 
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-text-secondary mt-1">
                   {version.deployed_by} &middot; {relativeTime(version.created_at)}
                 </p>
               </div>

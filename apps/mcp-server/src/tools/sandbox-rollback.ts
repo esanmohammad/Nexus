@@ -1,14 +1,28 @@
-function mcpResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
-}
+import { getClient, mcpResult, findSandboxByName } from "./client.js";
 
 export async function handleSandboxRollback(args: {
   name: string;
   target_version?: number;
 }) {
   try {
-    const version = args.target_version || 1;
-    return mcpResult(`Rolled back "${args.name}" to v${version}`);
+    if (!args.name) {
+      return mcpResult("Error: name is required");
+    }
+
+    const client = getClient();
+
+    const sandbox = await findSandboxByName(client, args.name);
+    if (!sandbox) {
+      return mcpResult(`Error: sandbox "${args.name}" not found`);
+    }
+
+    const result = await client.rollback(sandbox.id, args.target_version);
+
+    const version =
+      result?.version || result?.active_version || args.target_version || "previous";
+    return mcpResult(
+      `Rolled back "${args.name}" to v${version}`
+    );
   } catch (err: any) {
     return mcpResult(`Error rolling back: ${err.message}`);
   }

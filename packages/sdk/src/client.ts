@@ -96,6 +96,16 @@ export class NexusClient {
     return response.json();
   }
 
+  async createSandboxFromGithub(
+    config: Record<string, unknown> & { github_url: string }
+  ): Promise<any> {
+    return this.request<any>("/api/sandboxes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+  }
+
   async listSandboxes(): Promise<any[]> {
     return this.request<any[]>("/api/sandboxes");
   }
@@ -139,12 +149,15 @@ export class NexusClient {
   async deployVersion(
     sandboxId: string,
     source: Blob | File,
-    label?: string
+    label?: string,
+    config?: Record<string, unknown>
   ): Promise<any> {
     const formData = new FormData();
     formData.append("source", source);
-    if (label) {
-      formData.append("label", label);
+    const configObj: Record<string, unknown> = { ...config };
+    if (label) configObj.label = label;
+    if (Object.keys(configObj).length > 0) {
+      formData.append("config", JSON.stringify(configObj));
     }
 
     const url = `${this.baseUrl}/api/sandboxes/${sandboxId}/versions`;

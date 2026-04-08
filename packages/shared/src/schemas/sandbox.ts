@@ -17,6 +17,7 @@ export const CreateSandboxSchema = z.object({
   team: z.string().optional(),
   label: z.string().max(200).optional(),
   metadata: z.record(z.string()).optional(),
+  github_url: z.string().url().optional(),
 });
 
 export type CreateSandboxInput = z.infer<typeof CreateSandboxSchema>;

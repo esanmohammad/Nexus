@@ -71,6 +71,9 @@ export function DeployDropzone({ onFileSelect }: Props) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Upload source code"
       onDragOver={(e) => {
         e.preventDefault();
         setIsDragging(true);
@@ -78,7 +81,13 @@ export function DeployDropzone({ onFileSelect }: Props) {
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
-      className={`relative rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 min-h-[44px] ${
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
+      className={`relative rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-accent/50 ${
         isDragging
           ? "border-2 border-accent bg-accent/5 glow-accent"
           : "glass border border-dashed border-glass-border hover:border-accent/30"

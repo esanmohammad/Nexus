@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev": "turbo dev --filter=@nexus/api --filter=@nexus/web",
     "lint": "turbo lint",
     "test": "turbo test",
     "format": "prettier --write .",

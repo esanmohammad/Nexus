@@ -7,12 +7,11 @@ export interface AuthUser {
   name: string;
 }
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 const DEV_TOKEN = "valid-token";
 
 export function login(): void {
-  // In dev mode, set a dev session cookie and redirect home
   try {
     document.cookie = `session=${DEV_TOKEN}; path=/; max-age=86400; SameSite=Lax`;
     window.location.assign("/");
@@ -35,38 +34,53 @@ export function getSession(): string | null {
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
-  const fetchUser = useCallback(async () => {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const token = getSession();
     if (!token) {
       setUser(null);
       setIsLoading(false);
       return;
     }
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then((res) => {
+        clearTimeout(timeout);
+        if (res.ok) return res.json();
+        return null;
+      })
+      .then((data) => {
+        setUser(data || null);
+      })
+      .catch(() => {
+        setUser(null);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [mounted]);
 
   return {
     user,
-    isLoading,
+    isLoading: !mounted || isLoading,
     isAuthenticated: !!user,
   };
 }
